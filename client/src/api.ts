@@ -10,12 +10,21 @@ export interface SystemStatus {
   categories: Category[];
 }
 
-// Issue 2 + Issue 4 — call the backend.
-// Steps: fetch `${API_URL}/api/health`; if not ok, throw.
-//        then fetch `${API_URL}/api/categories`; if not ok, throw.
-//        return { online: true, categories }.
-// Throwing on failure lets the UI show a single Offline/error state.
+// Issue 2: health check only. Issue 4 will extend this to also fetch
+// `${API_URL}/api/categories` and replace the empty array below.
 export async function checkSystem(): Promise<SystemStatus> {
-  // TODO(Issue 2 & 4): implement the two fetch calls described above.
-  throw new Error("checkSystem not implemented yet");
+  try {
+    const healthRes = await fetch(`${API_URL}/api/health`);
+    if (!healthRes.ok) {
+      throw new Error("Unable to connect to TokTickIT API");
+    }
+  } catch {
+    // Catches both non-OK responses above and network-level failures
+    // (e.g. backend not running, DNS/connection refused).
+    throw new Error("Unable to connect to TokTickIT API");
+  }
+
+  // TODO(Issue 4): fetch `${API_URL}/api/categories`, throw if !res.ok,
+  // and return the real categories here instead of [].
+  return { online: true, categories: [] };
 }
