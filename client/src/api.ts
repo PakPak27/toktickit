@@ -13,8 +13,14 @@ export interface SystemStatus {
 // Issue 2: health check only. Issue 4 will extend this to also fetch
 // `${API_URL}/api/categories` and replace the empty array below.
 export async function checkSystem(): Promise<SystemStatus> {
-  const healthRes = await fetch(`${API_URL}/api/health`);
-  if (!healthRes.ok) {
+  try {
+    const healthRes = await fetch(`${API_URL}/api/health`);
+    if (!healthRes.ok) {
+      throw new Error("Unable to connect to TokTickIT API");
+    }
+  } catch {
+    // Catches both non-OK responses above and network-level failures
+    // (e.g. backend not running, DNS/connection refused).
     throw new Error("Unable to connect to TokTickIT API");
   }
 
