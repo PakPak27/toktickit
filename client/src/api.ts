@@ -10,21 +10,21 @@ export interface SystemStatus {
   categories: Category[];
 }
 
-// Issue 2: health check only. Issue 4 will extend this to also fetch
-// `${API_URL}/api/categories` and replace the empty array below.
 export async function checkSystem(): Promise<SystemStatus> {
   try {
     const healthRes = await fetch(`${API_URL}/api/health`);
     if (!healthRes.ok) {
       throw new Error("Unable to connect to TokTickIT API");
     }
+
+    const categoriesRes = await fetch(`${API_URL}/api/categories`);
+    if (!categoriesRes.ok) {
+      throw new Error("Unable to connect to TokTickIT API");
+    }
+
+    const categories: Category[] = await categoriesRes.json();
+    return { online: true, categories };
   } catch {
-    // Catches both non-OK responses above and network-level failures
-    // (e.g. backend not running, DNS/connection refused).
     throw new Error("Unable to connect to TokTickIT API");
   }
-
-  // TODO(Issue 4): fetch `${API_URL}/api/categories`, throw if !res.ok,
-  // and return the real categories here instead of [].
-  return { online: true, categories: [] };
 }
