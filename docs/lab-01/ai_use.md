@@ -15,4 +15,4 @@
 
 ## Reflection
 
-Clearly state your needs. Type exactly what you want the AI ​​to help you with, such as which issue you're currently working on and the specific requirements. This will prevent the AI ​​from going off-topic.
+I found that giving the AI specific context each time, such as which Issue I was working on and what the TODO comment in the scaffold said, gave me much better results than asking broad questions. There was one suggestion I decided not to follow, though. The AI recommended upgrading Prisma to the latest version after noticing the CLI’s update message. I chose not to do that because the project was using the pinned Prisma v5.22 syntax in both schema.prisma and package.json, and upgrading could have caused compatibility issues.
