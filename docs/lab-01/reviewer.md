@@ -39,6 +39,18 @@ row count stayed at exactly 4 with unchanged `id` and `createdAt` values,
 proving the `update: {}` branch ran instead of inserting duplicates. Offered
 to add an automated test asserting the count as additional evidence.
 
+### Issue 4 review
+**Reviewer comment I received:** Punyawat asked whether `checkSystem()`
+should return more granular error messages distinguishing a failed
+`/api/health` call from a failed `/api/categories` call, rather than a single
+unified "Unable to connect" message.
+**How I responded:** Explained the acceptance criteria only requires a
+"useful error message," not a granular one distinguishing failure layers —
+and from the end user's perspective both cases are equally unactionable.
+Offered to add a `console.error` with the specific failing endpoint for
+debugging purposes if desired, but kept the user-facing scope as-is per
+agreement.
+
 ## Pull Requests I reviewed for my partner
 
 ### Issue 2 (Punyawat's `checkSystem()` implementation)
