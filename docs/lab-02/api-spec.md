@@ -216,10 +216,14 @@ Download an active Attachment (ownership-checked via its parent Ticket's `reques
 
 **Response 200** — binary file stream, `Content-Disposition: attachment; filename="..."`.
 
-**Response 403** — attachment's ticket not owned by current Requester, or attachment is
-soft-removed (BR-26, AC-10):
+**Response 403** — attachment's ticket not owned by current Requester:
 ```json
-{ "error": "This attachment is not available for download" }
+{ "error": "You do not have access to this attachment" }
+```
+
+**Response 410** — attachment exists but has been soft-removed (BR-26, AC-10):
+```json
+{ "error": "This attachment has been removed and is no longer available" }
 ```
 
 **Response 404** — attachment does not exist.
@@ -258,4 +262,5 @@ Soft-remove an active Attachment.
 | 403 | Ownership failure (ticket/attachment not owned by current Requester) |
 | 404 | Ticket or Attachment does not exist |
 | 409 | Active-attachment limit reached |
+| 410 | Attachment exists but was soft-removed (download/preview blocked) |
 | 500 | Unexpected server error (always a safe generic message, never a stack trace) |

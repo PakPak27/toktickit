@@ -24,7 +24,7 @@ against a running dev server).
 | API-08 | API | AC-07 | POST /api/tickets/:id/attachments with a 6MB file | 400; rejected before storage; no DB row created | `server/tests/lab-02/attachments.api.test.ts` | Pending |
 | API-09 | API | AC-08 | POST attachment when ticket already has 5 active attachments | 400/409; 6th attachment rejected | `server/tests/lab-02/attachments.api.test.ts` | Pending |
 | API-10 | API | AC-09 | GET /api/attachments/:id/download for an active attachment | 200; correct file bytes/content-type returned | `server/tests/lab-02/attachments.api.test.ts` | Pending |
-| API-11 | API | AC-10 | DELETE /api/attachments/:id with reason, then GET download | DELETE succeeds (soft); subsequent download returns 410/403 | `server/tests/lab-02/attachments.api.test.ts` | Pending |
+| API-11 | API | AC-10 | DELETE /api/attachments/:id with reason, then GET download | DELETE succeeds (soft); subsequent download returns 410 | `server/tests/lab-02/attachments.api.test.ts` | Pending |
 | API-12 | API | BR-10 | Any ticket/attachment endpoint without X-Requester-Id header | 400/401; ownership cannot be bypassed | `server/tests/lab-02/ownership.api.test.ts` | Pending |
 | UI-01 | UI | AC-02 | My Tickets/Create Ticket opened with no Requester selected | Redirects to Requester Selection screen | `client/src/.../RequesterGuard.test.tsx` | Pending |
 | UI-02 | UI | FR-01/FR-02 | Requester dropdown loads active Requesters; Change Requester works | Dropdown populated from API; switching reloads current-Requester display | `client/src/.../RequesterSelection.test.tsx` | Pending |

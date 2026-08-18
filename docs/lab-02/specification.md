@@ -124,7 +124,7 @@ modify another Requester's data, even without real security enforcement yet.
 - BR-25: Attachment removal is soft-delete only: the record is flagged `removedAt` /
   `removalReason`, never hard-deleted.
 - BR-26: A removed attachment remains visible in the attachment list as metadata (name,
-  size, removed date/reason) but returns 410/403 on download or preview attempts.
+  size, removed date/reason) but returns 410 (Gone) on download or preview attempts.
 - BR-27: Only the owning Requester may add or remove attachments on a ticket.
 - BR-28: Removing an attachment requires the Requester to confirm and provide a short
   removal reason (required, 3–200 characters).
@@ -220,6 +220,13 @@ No changes required; already has `id`, `name` (unique), `createdAt`.
 | uploadedAt | DateTime | default now() |
 | removedAt | DateTime, nullable | soft-removal marker |
 | removalReason | String, nullable | required when removedAt is set |
+
+### Required Seed Data (Section 5.3)
+- Categories: reuse the 4 existing from Lab 1 (Account and Access, Hardware, Software, Network)
+- Related Systems: at least 6 — Email, Campus Wi-Fi, VPN, LEB2 App, Grade Submission App,
+  Printer, Corporate Laptop (7 provided, exceeds the minimum)
+- RequesterUser: at least 4 active + 1 inactive (5 total minimum); the inactive Requester
+  must not appear in `GET /api/requesters`
 
 ### Indexes / constraints
 - `Ticket.ticketNumber` — unique index
