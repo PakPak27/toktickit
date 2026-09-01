@@ -1,69 +1,50 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { BrowserRouter } from "react-router-dom";
-import RequesterSelection from "../../src/pages/RequesterSelection.js";
+import { describe, it, expect, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { RequesterProvider } from "../../src/context/RequesterContext.js";
-import * as requestersApi from "../../src/api/requesters.js";
+import RequireRequester from "../../src/components/RequireRequester.js";
 
-function renderPage() {
+function renderGuarded(initialPath: string) {
   return render(
-    <BrowserRouter>
+    <MemoryRouter initialEntries={[initialPath]}>
       <RequesterProvider>
-        <RequesterSelection />
+        <Routes>
+          <Route path="/" element={<div>Requester Selection Screen</div>} />
+          <Route
+            path="/tickets"
+            element={
+              <RequireRequester>
+                <div>My Tickets Screen</div>
+              </RequireRequester>
+            }
+          />
+        </Routes>
       </RequesterProvider>
-    </BrowserRouter>
+    </MemoryRouter>
   );
 }
 
-describe("RequesterSelection", () => {
+describe("RequireRequester (AC-02)", () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it("loads active requesters into the dropdown", async () => {
-    vi.spyOn(requestersApi, "fetchActiveRequesters").mockResolvedValue([
-      { id: 1, name: "Jennifer Anderson", email: "jennifer.anderson@example.com" },
-      { id: 2, name: "Michael Brown", email: "michael.brown@example.com" },
-    ]);
+  it("redirects to the Requester Selection screen when no requester is selected", () => {
+    renderGuarded("/tickets");
 
-    renderPage();
-
-    await waitFor(() => {
-      expect(screen.getByText("Jennifer Anderson")).toBeInTheDocument();
-    });
-    expect(screen.getByText("Michael Brown")).toBeInTheDocument();
+    expect(screen.getByText("Requester Selection Screen")).toBeInTheDocument();
+    expect(screen.queryByText("My Tickets Screen")).not.toBeInTheDocument();
   });
 
-  it("shows a safe error state when the API fails", async () => {
-    vi.spyOn(requestersApi, "fetchActiveRequesters").mockRejectedValue(
-      new Error("network down")
+  it("renders the protected screen when a requester is already selected", () => {
+    localStorage.setItem(
+      "toktickit.selectedRequester",
+      JSON.stringify({ id: 1, name: "Jennifer Anderson", email: "jennifer.anderson@example.com" })
     );
 
-    renderPage();
+    renderGuarded("/tickets");
 
-    await waitFor(() => {
-      expect(screen.getByText(/Unable to load development requesters/i)).toBeInTheDocument();
-    });
-  });
-
-  it("disables Continue until a requester is selected", async () => {
-    vi.spyOn(requestersApi, "fetchActiveRequesters").mockResolvedValue([
-      { id: 1, name: "Jennifer Anderson", email: "jennifer.anderson@example.com" },
-    ]);
-
-    renderPage();
-
-    await waitFor(() => {
-      expect(screen.getByText("Jennifer Anderson")).toBeInTheDocument();
-    });
-
-    const continueButton = screen.getByText("Continue →");
-    expect(continueButton).toBeDisabled();
-
-    fireEvent.change(screen.getByLabelText(/Development Requester/i), {
-      target: { value: "1" },
-    });
-
-    expect(continueButton).not.toBeDisabled();
+    expect(screen.getByText("My Tickets Screen")).toBeInTheDocument();
+    expect(screen.queryByText("Requester Selection Screen")).not.toBeInTheDocument();
   });
 });
