@@ -3,14 +3,13 @@ import { RequesterProvider } from "./context/RequesterContext.js";
 import RequireRequester from "./components/RequireRequester.js";
 import AppShell from "./components/AppShell.js";
 import RequesterSelection from "./pages/RequesterSelection.js";
+import CreateTicket from "./pages/CreateTicket.js";
 
-// Placeholder screens — real implementations arrive in Issues #3, #4, #5.
+// Placeholder screens — real implementations arrive in Issues #4, #5.
 function MyTicketsPlaceholder() {
   return <div>My Tickets (coming in Issue #4)</div>;
 }
-function CreateTicketPlaceholder() {
-  return <div>Create Ticket (coming in Issue #3)</div>;
-}
+
 function TicketDetailPlaceholder() {
   return <div>Ticket Detail (coming in Issue #5)</div>;
 }
@@ -36,7 +35,7 @@ export default function App() {
             element={
               <RequireRequester>
                 <AppShell>
-                  <CreateTicketPlaceholder />
+                  <CreateTicket />
                 </AppShell>
               </RequireRequester>
             }
