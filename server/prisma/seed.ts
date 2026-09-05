@@ -13,6 +13,17 @@ const REQUESTERS: { name: string; email: string; isActive: boolean }[] = [
   { name: "Retired Account", email: "retired.account@example.com", isActive: false },
 ];
 
+// Lab 2 — seed Related Systems. At least 6, per Labsheet Section 5.3.
+const RELATED_SYSTEM_NAMES = [
+  "Email",
+  "Campus Wi-Fi",
+  "VPN",
+  "LEB2 App",
+  "Grade Submission App",
+  "Printer",
+  "Corporate Laptop",
+];
+
 async function main() {
   const prisma = getPrisma();
 
@@ -33,6 +44,15 @@ async function main() {
     });
   }
   console.log(`Seeded ${REQUESTERS.length} development requesters.`);
+
+  for (const name of RELATED_SYSTEM_NAMES) {
+    await prisma.relatedSystem.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+  console.log(`Seeded ${RELATED_SYSTEM_NAMES.length} related systems.`);
 }
 
 main()
