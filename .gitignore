@@ -15,3 +15,7 @@ server/prisma/*.db
 # uploaded attachments (Lab 2) - keep the folder, ignore its contents
 server/uploads/*
 !server/uploads/.gitkeep
+
+# Playwright test artifacts
+test-results/
+playwright-report/
