@@ -1,53 +1,50 @@
-import { useState } from "react";
-import { checkSystem, Category } from "./api.js";
-
-type UiState = "idle" | "loading" | "success" | "error";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { RequesterProvider } from "./context/RequesterContext.js";
+import RequireRequester from "./components/RequireRequester.js";
+import AppShell from "./components/AppShell.js";
+import RequesterSelection from "./pages/RequesterSelection.js";
+import CreateTicket from "./pages/CreateTicket.js";
+import MyTickets from "./pages/MyTickets.js";
+import TicketDetail from "./pages/TicketDetail.js";
 
 export default function App() {
-  const [state, setState] = useState<UiState>("idle");
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  async function handleCheck() {
-    setState("loading");
-    try {
-      const result = await checkSystem();
-      setCategories(result.categories);
-      setState("success");
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Something went wrong");
-      setState("error");
-    }
-  }
-
   return (
-    <div className="container py-5" style={{ maxWidth: 640 }}>
-      <h1 className="h3 mb-4">
-        TokTickIT <span className="text-success">IT Service Desk</span>
-      </h1>
-
-      <button className="btn btn-success" onClick={handleCheck} disabled={state === "loading"}>
-        {state === "loading" ? "Loading…" : "Check System"}
-      </button>
-
-      {state === "success" && (
-        <div className="mt-4">
-          <p className="fw-bold mb-1">System Status: Online</p>
-          <p className="mb-1">Supported Request Categories:</p>
-          <ul>
-            {categories.map((cat) => (
-              <li key={cat.id}>{cat.name}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {state === "error" && (
-        <div className="mt-4">
-          <p className="fw-bold text-danger mb-1">System Status: Offline</p>
-          <p className="text-danger">{errorMessage}</p>
-        </div>
-      )}
-    </div>
+    <RequesterProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<RequesterSelection />} />
+          <Route
+            path="/tickets"
+            element={
+              <RequireRequester>
+                <AppShell>
+                  <MyTickets />
+                </AppShell>
+              </RequireRequester>
+            }
+          />
+          <Route
+            path="/tickets/new"
+            element={
+              <RequireRequester>
+                <AppShell>
+                  <CreateTicket />
+                </AppShell>
+              </RequireRequester>
+            }
+          />
+          <Route
+            path="/tickets/:id"
+            element={
+              <RequireRequester>
+                <AppShell>
+                  <TicketDetail />
+                </AppShell>
+              </RequireRequester>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+    </RequesterProvider>
   );
 }

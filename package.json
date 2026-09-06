@@ -1,0 +1,26 @@
+{
+  "name": "toktickit",
+  "version": "1.0.0",
+  "description": "TokTickIT (ตอกติ๊กกิต) — IT Service Desk application.\r CPE334 Lab 1: Full-stack vertical slice (React → Express → Prisma → PostgreSQL).",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PakPak27/toktickit.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/PakPak27/toktickit/issues"
+  },
+  "homepage": "https://github.com/PakPak27/toktickit#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}
