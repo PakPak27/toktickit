@@ -12,3 +12,9 @@ server/prisma/*.db
 # logs & OS
 *.log
 .DS_Store
+
+# uploaded attachments (Lab 2) — keep the folder, ignore its contents
+server/uploads/*
+!server/uploads/.gitkeep
+
+git add .gitignore client/src/App.tsx server/package-lock.json server/package.json server/src/app.ts client/src/api/ticketDetail.ts client/src/pages/TicketDetail.tsx client/tests/lab-02/TicketDetail.test.tsx server/tests/lab-02/attachments.api.test.ts server/tests/lab-02/ticket-detail.api.test.ts server/uploads/.gitkeep

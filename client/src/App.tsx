@@ -5,11 +5,7 @@ import AppShell from "./components/AppShell.js";
 import RequesterSelection from "./pages/RequesterSelection.js";
 import CreateTicket from "./pages/CreateTicket.js";
 import MyTickets from "./pages/MyTickets.js";
-
-// Placeholder screen — real implementation arrives in a later Issue.
-function TicketDetailPlaceholder() {
-  return <div>Ticket Detail (coming in a later Issue)</div>;
-}
+import TicketDetail from "./pages/TicketDetail.js";
 
 export default function App() {
   return (
@@ -42,7 +38,7 @@ export default function App() {
             element={
               <RequireRequester>
                 <AppShell>
-                  <TicketDetailPlaceholder />
+                  <TicketDetail />
                 </AppShell>
               </RequireRequester>
             }
