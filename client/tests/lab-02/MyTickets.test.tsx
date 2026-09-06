@@ -76,4 +76,70 @@ describe("MyTickets", () => {
       expect(fetchSpy).toHaveBeenCalledWith(1, expect.anything());
     });
   });
+
+      it("renders a desktop page-size selector with 10/20/50 options", async () => {
+    vi.spyOn(myTicketsApi, "fetchMyTickets").mockResolvedValue({
+      data: [
+        {
+          id: 1, ticketNumber: "TKT-2026-000001", summary: "Test ticket",
+          categoryId: 1, requestedPriority: "MEDIUM", itPriority: null,
+          currentStatus: "NEW", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        },
+      ],
+      pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 },
+    });
+
+    renderPage();
+
+    const pageSizeSelect = await screen.findByLabelText(/Per page/i) as HTMLSelectElement;
+    expect(pageSizeSelect).toBeInTheDocument();
+    const options = Array.from(pageSizeSelect.options).map((o) => o.value);
+    expect(options).toEqual(["10", "20", "50"]);
+  });
+
+  it("shows a sort-direction arrow on the active sorted column", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    vi.spyOn(myTicketsApi, "fetchMyTickets").mockResolvedValue({
+      data: [
+        {
+          id: 1, ticketNumber: "TKT-2026-000001", summary: "Test ticket",
+          categoryId: 1, requestedPriority: "MEDIUM", itPriority: null,
+          currentStatus: "NEW", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        },
+      ],
+      pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 },
+    });
+
+    renderPage();
+
+    // role="button" is set explicitly on the <th>, so this only matches the
+    // table header — not the mobile <select><option> text with similar wording.
+    const createdDateHeader = await screen.findByRole("button", { name: /Created Date/ });
+
+    // Default sort is createdAt desc — should show a down arrow
+    expect(createdDateHeader.textContent).toMatch(/↓/);
+
+    fireEvent.click(createdDateHeader);
+
+    await waitFor(() => {
+      expect(createdDateHeader.textContent).toMatch(/↑/);
+    });
+  });
+
+  it("renders a mobile sort <select> control", async () => {
+    vi.spyOn(myTicketsApi, "fetchMyTickets").mockResolvedValue({
+      data: [
+        {
+          id: 1, ticketNumber: "TKT-2026-000001", summary: "Test ticket",
+          categoryId: 1, requestedPriority: "MEDIUM", itPriority: null,
+          currentStatus: "NEW", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        },
+      ],
+      pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 },
+    });
+
+    renderPage();
+
+    expect(await screen.findByLabelText(/Sort by/i)).toBeInTheDocument();
+  });
 });

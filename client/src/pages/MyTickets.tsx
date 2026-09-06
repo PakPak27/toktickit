@@ -31,7 +31,7 @@ export default function MyTickets() {
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(10);
   const [loadState, setLoadState] = useState<LoadState>("loading");
 
   const [search, setSearch] = useState("");
@@ -187,12 +187,18 @@ export default function MyTickets() {
             <table className="table mb-0">
               <thead>
                 <tr>
-                  <th role="button" onClick={() => toggleSort("ticketNumber")}>Ticket No.</th>
-                  <th role="button" onClick={() => toggleSort("createdAt")}>Created Date</th>
+                  <th role="button" onClick={() => toggleSort("ticketNumber")}>
+                    Ticket No. {sort === "ticketNumber" && (order === "asc" ? "↑" : "↓")}
+                  </th>
+                  <th role="button" onClick={() => toggleSort("createdAt")}>
+                    Created Date {sort === "createdAt" && (order === "asc" ? "↑" : "↓")}
+                  </th>
                   <th>Summary</th>
                   <th>Requested Priority</th>
                   <th>Status</th>
-                  <th role="button" onClick={() => toggleSort("updatedAt")}>Last Updated</th>
+                  <th role="button" onClick={() => toggleSort("updatedAt")}>
+                    Last Updated {sort === "updatedAt" && (order === "asc" ? "↑" : "↓")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -210,6 +216,30 @@ export default function MyTickets() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile sort control */}
+          <div className="d-md-none mb-2">
+            <label htmlFor="mobileSortSelect" className="small text-muted mb-1 d-block">
+              Sort by
+            </label>
+            <select
+              id="mobileSortSelect"
+              className="form-select form-select-sm"
+              value={`${sort}-${order}`}
+              onChange={(e) => {
+                const [field, dir] = e.target.value.split("-");
+                setSort(field);
+                setOrder(dir as "asc" | "desc");
+              }}
+            >
+              <option value="createdAt-desc">Created Date (newest first)</option>
+              <option value="createdAt-asc">Created Date (oldest first)</option>
+              <option value="ticketNumber-desc">Ticket No. (Z–A)</option>
+              <option value="ticketNumber-asc">Ticket No. (A–Z)</option>
+              <option value="updatedAt-desc">Last Updated (newest first)</option>
+              <option value="updatedAt-asc">Last Updated (oldest first)</option>
+            </select>
           </div>
 
           {/* Mobile cards */}
@@ -233,25 +263,43 @@ export default function MyTickets() {
             ))}
           </div>
 
-          <div className="d-flex justify-content-between align-items-center mt-3">
+          <div className="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
             <span className="text-muted small">
               Showing page {page} of {totalPages} ({totalItems} tickets)
             </span>
-            <div className="d-flex gap-2">
-              <button
-                className="btn btn-outline-secondary btn-sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                Previous
-              </button>
-              <button
-                className="btn btn-outline-secondary btn-sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-              </button>
+            <div className="d-flex align-items-center gap-3">
+              <div className="d-none d-md-flex align-items-center gap-2">
+                <label htmlFor="pageSizeSelect" className="small text-muted mb-0">
+                  Per page:
+                </label>
+                <select
+                  id="pageSizeSelect"
+                  className="form-select form-select-sm"
+                  style={{ width: "auto" }}
+                  value={pageSize}
+                  onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+              <div className="d-flex gap-2">
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Previous
+                </button>
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         </>
