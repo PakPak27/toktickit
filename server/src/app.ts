@@ -318,25 +318,39 @@ app.post(
     });
   },
   async (req: Request, res: Response) => {
-    const requesterIdHeader = req.header("X-Requester-Id");
-    const requesterId = requesterIdHeader ? Number(requesterIdHeader) : NaN;
-    const ticketId = Number(req.params.id);
-
-    if (!requesterIdHeader || Number.isNaN(requesterId)) {
-      return res.status(400).json({ error: "A valid, active requester is required" });
-    }
-    if (!req.file) {
-      return res.status(400).json({ error: "A file is required" });
-    }
+    // From this point on, req.file (if present) has already been written to
+    // disk by multer. Every return path below must clean it up on failure —
+    // there is no DB row referencing it until the final success response.
+    const cleanupFile = () => {
+      if (req.file) {
+        fs.unlink(req.file.path, () => undefined);
+      }
+    };
 
     try {
+      const requesterIdHeader = req.header("X-Requester-Id");
+      const requesterId = requesterIdHeader ? Number(requesterIdHeader) : NaN;
+      const ticketId = Number(req.params.id);
+
+      if (!requesterIdHeader || Number.isNaN(requesterId)) {
+        cleanupFile();
+        return res.status(400).json({ error: "A valid, active requester is required" });
+      }
+      if (Number.isNaN(ticketId)) {
+        cleanupFile();
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: "A file is required" });
+      }
+
       const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
       if (!ticket) {
-        fs.unlink(req.file.path, () => undefined);
+        cleanupFile();
         return res.status(404).json({ error: "Ticket not found" });
       }
       if (ticket.requesterId !== requesterId) {
-        fs.unlink(req.file.path, () => undefined);
+        cleanupFile();
         return res.status(403).json({ error: "You do not have access to this ticket" });
       }
 
@@ -345,7 +359,7 @@ app.post(
         where: { ticketId, removedAt: null },
       });
       if (activeCount >= MAX_ACTIVE_ATTACHMENTS) {
-        fs.unlink(req.file.path, () => undefined);
+        cleanupFile();
         return res.status(409).json({ error: "This ticket already has the maximum of 5 active attachments" });
       }
 
@@ -361,48 +375,14 @@ app.post(
 
       res.status(201).json(attachment);
     } catch (err) {
+      // Catch-all: any unexpected error (bad :id parsing, DB failure, etc.)
+      // must not leave an orphaned file on disk.
+      cleanupFile();
       console.error("Failed to upload attachment:", err);
       res.status(500).json({ error: "Unable to upload attachment" });
     }
   }
 );
-
-// ---------------------------------------------------------------------------
-// GET /api/attachments/:id/download — download an active Attachment
-// ---------------------------------------------------------------------------
-app.get("/api/attachments/:id/download", async (req: Request, res: Response) => {
-  const requesterIdHeader = req.header("X-Requester-Id");
-  const requesterId = requesterIdHeader ? Number(requesterIdHeader) : NaN;
-  const attachmentId = Number(req.params.id);
-
-  if (!requesterIdHeader || Number.isNaN(requesterId)) {
-    return res.status(400).json({ error: "A valid, active requester is required" });
-  }
-
-  try {
-    const attachment = await getPrisma().attachment.findUnique({
-      where: { id: attachmentId },
-      include: { ticket: true },
-    });
-
-    if (!attachment) {
-      return res.status(404).json({ error: "Attachment not found" });
-    }
-    if (attachment.ticket.requesterId !== requesterId) {
-      return res.status(403).json({ error: "You do not have access to this attachment" });
-    }
-    // BR-26: soft-removed attachments cannot be downloaded — 410 Gone
-    if (attachment.removedAt) {
-      return res.status(410).json({ error: "This attachment has been removed and is no longer available" });
-    }
-
-    const filePath = path.join(UPLOAD_DIR, attachment.storedPath);
-    res.download(filePath, attachment.fileName);
-  } catch (err) {
-    console.error("Failed to download attachment:", err);
-    res.status(500).json({ error: "Unable to download attachment" });
-  }
-});
 
 // ---------------------------------------------------------------------------
 // DELETE /api/attachments/:id — soft-remove an active Attachment
