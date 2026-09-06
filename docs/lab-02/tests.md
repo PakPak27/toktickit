@@ -65,14 +65,16 @@ against a running dev server).
 | AC-15 | UI-02 |
 
 ## 4. Responsive and Visual Checklist
-To be completed during Issue #6 (Responsive and visual QA), checked against `ui-spec.md`:
-- [ ] No clipped labels at any viewport
-- [ ] No overlapping validation messages
-- [ ] No unintended horizontal scrolling on mobile
-- [ ] Consistent field styling (editable vs. read-only vs. error) across all three screens
-- [ ] All loading/empty/no-results/error states present and styled per `ui-spec.md`
-- [ ] Badge colors consistent for Requested Priority, IT Priority, and Current Status
-- [ ] Filters, pagination, and attachment controls remain usable at all viewport sizes
+Checked against 9 Playwright-captured screenshots (`artifacts/lab-02/screenshots/`)
+covering Create Ticket, My Tickets, and Ticket Detail at desktop (1280px), tablet
+(900px), and mobile (375px) viewports:
+- [x] No clipped labels at any viewport
+- [x] No overlapping messages
+- [x] No unintended horizontal scrolling on mobile
+- [x] Consistent field styling (editable/read-only/error) across all 3 screens
+- [x] All loading/empty/no-results/error states present and styled per ui-spec.md
+- [x] Badge colors consistent for Requested Priority and Current Status
+- [x] Filters, pagination, and attachment controls remain usable at all viewport sizes
 
 ## 5. Test Commands
 
