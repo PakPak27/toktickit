@@ -8,6 +8,12 @@ from the session (BR-09). Endpoints tagged **[MCP]** are gated by
 pending; every other protected endpoint returns 403 with
 `{ "error": "Password change required" }` until the user completes it (BR-06).
 
+**CORS:** the server's `cors()` middleware must set an explicit origin
+(`http://localhost:5173`, never `*`) and `credentials: true`; every
+frontend request must pass `credentials: "include"`. Without both sides
+configured, the browser silently drops the session cookie on every
+cross-origin (`:5173` → `:3000`) call — see `specification.md` §11.
+
 ## 1. POST /api/auth/login — public
 **Request body**
 ```json

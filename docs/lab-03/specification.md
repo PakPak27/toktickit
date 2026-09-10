@@ -229,7 +229,7 @@ a disabled button on the frontend is a convenience, not security.
 ### 5.5. Status Transition Matrix
 | From \ To | OPEN | IN_PROGRESS | WAITING_FOR_REQUESTER | RESOLVED | CLOSED | REOPENED | CANCELLED |
 |---|---|---|---|---|---|---|---|
-| NEW | ✔ (claim) | ✔ | – | – | – | – | ✔ |
+| NEW | ✔ | ✔ | – | – | – | – | ✔ |
 | OPEN | – | ✔ | ✔ | ✔* | – | – | ✔ |
 | IN_PROGRESS | ✔ | – | ✔ | ✔* | – | – | ✔ |
 | WAITING_FOR_REQUESTER | ✔ | ✔ | – | ✔* | – | – | ✔ |
@@ -241,6 +241,16 @@ a disabled button on the frontend is a convenience, not security.
 `*` requires an assigned Ticket Owner (BR-19). All transitions above are
 IT Staff/Administrator-only (BR-18); `CANCELLED` is terminal — reopening a
 cancelled ticket is out of scope for Lab 3.
+
+**Claiming/assigning a Ticket Owner (BR-14/BR-15, `PATCH
+/api/staff/tickets/:id/owner`) and changing Current Status (this matrix,
+`PATCH /api/staff/tickets/:id/status`) are independent operations.**
+Claiming an unassigned `NEW` Ticket sets `ticketOwnerId` only and does not
+by itself move Current Status to `OPEN` — the IT Staff member makes a
+separate, explicit status-transition call when they actually start
+working the Ticket. This keeps "who owns it" and "what state it's in"
+decoupled, matching BR-14/BR-15 and the owner endpoint's response shape
+(`api-spec.md` §12), which never includes `currentStatus`.
 
 ### 5.6. Seed / local-dev credentials
 All seeded accounts use the same documented local-only initial password
@@ -471,6 +481,18 @@ header entirely; ownership comes from the session cookie only (BR-09).
   since the handout (BR-05 example) is explicit that a Requester cannot
   formally change status — keeping it a separate signal avoids overloading
   the status enum with a non-authoritative state.
+- **CORS must move from wildcard to explicit-origin + credentials:** Lab
+  2's `app.use(cors())` (no options) reflects a wildcard origin, which the
+  browser refuses to combine with credentialed (cookie-bearing) requests —
+  it would silently fail to set or send `toktickit_session`, with no
+  visible error. Lab 3's `cors()` call must be configured with `origin:
+  "http://localhost:5173"` (explicit, not `*`) and `credentials: true`,
+  and every frontend `fetch` call must pass `credentials: "include"`.
+  `localhost:5173` and `localhost:3000` are same-site (SameSite ignores
+  port) but still cross-origin, so both sides of this pairing are required
+  for `SameSite=Lax` cookies to actually flow. This is called out
+  explicitly here so it is handled from the first line of Issue #2
+  (Authentication foundation), not discovered as a silent bug later.
 - **IT Staff attachments are read-only in Lab 3:** the handout's IT Staff
   Ticket Detail description does not list attachment upload as a required
   IT Staff action, so Lab 3 keeps attachment add/remove Requester-only,
