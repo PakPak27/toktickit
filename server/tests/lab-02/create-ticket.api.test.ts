@@ -9,7 +9,7 @@ let relatedSystemId: number;
 
 beforeAll(async () => {
   const prisma = getPrisma();
-  const requester = await prisma.requesterUser.findFirst({ where: { isActive: true } });
+  const requester = await prisma.user.findFirst({ where: { isActive: true, role: "REQUESTER" } });
   const category = await prisma.category.findFirst();
   const relatedSystem = await prisma.relatedSystem.findFirst({ where: { isActive: true } });
 
