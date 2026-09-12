@@ -25,6 +25,13 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash);
 }
 
+// BR-01: a fixed-cost hash to compare against when no real user/hash
+// exists, so an unknown-email or inactive-account login takes the same
+// bcrypt.compare() time as a wrong-password one — otherwise the early
+// return before hashing is a timing side-channel that leaks whether an
+// email is registered, even though both cases return an identical body.
+export const DUMMY_PASSWORD_HASH = bcrypt.hashSync("not-a-real-password", 10);
+
 // BR-03: signed JWT carried in an httpOnly, SameSite=Lax cookie.
 export function signSessionToken(payload: SessionPayload): string {
   return jwt.sign(payload, getJwtSecret(), { expiresIn: SESSION_TTL_SECONDS });

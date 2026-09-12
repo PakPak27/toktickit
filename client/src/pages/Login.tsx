@@ -1,10 +1,9 @@
 import { FormEvent, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.js";
 
 export default function Login() {
   const { user, login } = useAuth();
-  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -28,8 +27,11 @@ export default function Login() {
     setSubmitting(true);
     setError(null);
     try {
+      // Don't navigate here — the `if (user)` guard above re-renders once
+      // `login` resolves and routes to /change-password or /tickets based
+      // on the freshly-loaded mustChangePassword, so there's exactly one
+      // source of truth for where a signed-in user lands (AC-03).
       await login(email.trim(), password);
-      navigate("/tickets");
     } catch (err) {
       setError((err as Error).message);
     } finally {

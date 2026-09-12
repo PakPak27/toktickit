@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { getPrisma } from "./prisma.js";
 import {
+  DUMMY_PASSWORD_HASH,
   SESSION_COOKIE_NAME,
   hashPassword,
   passwordRuleFailures,
@@ -27,12 +28,11 @@ authRouter.post("/login", async (req: Request, res: Response) => {
       where: { email: { equals: email, mode: "insensitive" } },
     });
 
-    if (!user || !user.isActive) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    const passwordOk = await verifyPassword(password, user.passwordHash);
-    if (!passwordOk) {
+    // Always run bcrypt.compare — against the real hash when the user
+    // exists, or a fixed dummy hash when they don't/are inactive — so an
+    // unknown email and a wrong password take comparably long (BR-01).
+    const passwordOk = await verifyPassword(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+    if (!user || !user.isActive || !passwordOk) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 import Login from "../../src/pages/Login.js";
 import { AuthProvider } from "../../src/context/AuthContext.js";
 import * as authApi from "../../src/api/auth.js";
@@ -10,6 +10,22 @@ function renderPage() {
     <MemoryRouter initialEntries={["/login"]}>
       <AuthProvider>
         <Login />
+      </AuthProvider>
+    </MemoryRouter>
+  );
+}
+
+// Renders Login alongside real destination routes, so the post-login
+// redirect target can actually be observed (not just that `login` resolved).
+function renderWithDestinations() {
+  return render(
+    <MemoryRouter initialEntries={["/login"]}>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/change-password" element={<div>Change Password Screen</div>} />
+          <Route path="/tickets" element={<div>My Tickets Screen</div>} />
+        </Routes>
       </AuthProvider>
     </MemoryRouter>
   );
@@ -60,5 +76,45 @@ describe("Login (AC-01, AC-02)", () => {
 
     expect(await screen.findByRole("button", { name: /signing in/i })).toBeDisabled();
     resolveLogin();
+  });
+
+  // Regression test for the PR #36 review finding: Login must never land a
+  // mustChangePassword user on /tickets, even for an instant.
+  it("routes a mustChangePassword user to Change Password, not My Tickets (AC-03)", async () => {
+    vi.spyOn(authApi, "login").mockResolvedValue({
+      id: 1,
+      name: "Jennifer Anderson",
+      email: "jennifer.anderson@example.com",
+      role: "REQUESTER",
+      mustChangePassword: true,
+    });
+    renderWithDestinations();
+
+    await waitFor(() => screen.getByLabelText(/email address/i));
+    fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "a@b.com" } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "ChangeMe123!" } });
+    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(await screen.findByText("Change Password Screen")).toBeInTheDocument();
+    expect(screen.queryByText("My Tickets Screen")).not.toBeInTheDocument();
+  });
+
+  it("routes a user who already changed their password to My Tickets (AC-01)", async () => {
+    vi.spyOn(authApi, "login").mockResolvedValue({
+      id: 1,
+      name: "Jennifer Anderson",
+      email: "jennifer.anderson@example.com",
+      role: "REQUESTER",
+      mustChangePassword: false,
+    });
+    renderWithDestinations();
+
+    await waitFor(() => screen.getByLabelText(/email address/i));
+    fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "a@b.com" } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "N3wSecret!Pass" } });
+    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(await screen.findByText("My Tickets Screen")).toBeInTheDocument();
+    expect(screen.queryByText("Change Password Screen")).not.toBeInTheDocument();
   });
 });
