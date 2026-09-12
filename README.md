@@ -1,7 +1,8 @@
 # TokTickIT
 
 TokTickIT (ตอกติ๊กกิต) — IT Service Desk application.
-CPE334 Lab 1-2: Full-stack ticketing MVP (React → Express → Prisma → PostgreSQL).
+CPE334 Lab 1-3: Full-stack ticketing app with authentication and role-based
+access (React → Express → Prisma → PostgreSQL).
 
 ## Tech Stack
 
@@ -30,10 +31,17 @@ cd toktickit
 cd server
 npm install
 cp .env.example .env
-# Edit .env and set DATABASE_URL to match your local PostgreSQL user/password/db
+# Edit .env: set DATABASE_URL to match your local PostgreSQL user/password/db,
+# and set JWT_SECRET to your own random local value (see the comment in
+# .env.example for a one-line command to generate one).
 npm run prisma:migrate
 npm run prisma:seed
 \`\`\`
+
+**Lab 3 seed credentials (local development only, never real secrets):**
+every seeded account (Requester, IT Staff, and Administrator) uses the
+password \`ChangeMe123!\` and must change it at first login. See
+\`server/prisma/seed.ts\` for the full list of seeded accounts and roles.
 
 ### 3. Frontend setup
 
@@ -69,6 +77,13 @@ with validation and attachments, My Tickets (search/filter/sort/pagination),
 Requester Ticket Detail with attachment upload/download/soft-removal, responsive
 Zen Green UI, full E2E/visual test coverage.
 
+**Lab 3 (in progress):** email/password authentication with mandatory
+first-login password change, replacing the Lab 2 Development Requester
+selector; role-based authorization (Requester / IT Staff / Administrator)
+enforced server-side. Remaining Lab 3 work (IT Staff Ticket Queue and
+operations, Public Comments/Internal Notes, Administrator user management)
+tracked in the `TokTickIT-Lab3` GitHub Project.
+
 ## Project Structure
 
 \`\`\`
@@ -77,11 +92,11 @@ toktickit/
 ├── server/              # Express + Prisma backend
 │   ├── prisma/          # Prisma schema, migrations, seed
 │   ├── src/              # Express app source
-│   └── tests/lab-01/, lab-02/   # Supertest API tests
+│   └── tests/lab-01/, lab-02/, lab-03/   # Supertest API tests
 ├── e2e/lab-02/           # Playwright E2E and visual tests
 ├── artifacts/lab-02/screenshots/  # Responsive screenshots (desktop/tablet/mobile)
-├── docs/lab-01/, lab-02/  # specification.md, tests.md, ui-spec.md, api-spec.md,
-│                          # ai-use.md, reviewer.md
+├── docs/lab-01/, lab-02/, lab-03/  # specification.md, tests.md, ui-spec.md,
+│                          # api-spec.md, ai-use.md, reviewer.md
 ├── .gitignore
 └── README.md
 \`\`\`

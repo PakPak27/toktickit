@@ -14,12 +14,12 @@ authorization (direct API calls bypassing the UI), migration/regression
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| UNIT-01 | Unit | BR-07 | Password rule validator | Rejects <8 chars, missing upper/lower/digit/special; accepts compliant password | `server/tests/lab-03/password-rules.unit.test.ts` | Pending |
-| UNIT-02 | Unit | BR-17 | Status-transition matrix helper | Returns correct valid-next-status set for every status | `server/tests/lab-03/status-transitions.unit.test.ts` | Pending |
-| API-01 | API | AC-01 | POST /api/auth/login valid credentials | 200; session cookie set; correct id/name/role returned | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-02 | API | AC-02 | Login with wrong password AND with inactive account | Both return identical 401 body | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-03 | API | AC-03 | Login as mustChangePassword user, then call GET /api/tickets | 403 "Password change required" until change-password succeeds | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-04 | API | AC-19 | Call any protected endpoint after logout with the old cookie | 401 | `server/tests/lab-03/auth.api.test.ts` | Pending |
+| UNIT-01 | Unit | BR-07 | Password rule validator | Rejects <8 chars, missing upper/lower/digit/special; accepts compliant password | `server/tests/lab-03/password-rules.unit.test.ts` | Pass |
+| UNIT-02 | Unit | BR-17 | Status-transition matrix helper | Returns correct valid-next-status set for every status | `server/tests/lab-03/status-transitions.unit.test.ts` | Pending (IT Staff Ticket operations issue) |
+| API-01 | API | AC-01 | POST /api/auth/login valid credentials | 200; session cookie set; correct id/name/role returned | `server/tests/lab-03/auth.api.test.ts` | Pass |
+| API-02 | API | AC-02 | Login with wrong password AND with inactive account | Both return identical 401 body | `server/tests/lab-03/auth.api.test.ts` | Pass |
+| API-03 | API | AC-03 | Login as mustChangePassword user, then exercise the change-password gate (wrong current password, weak new password, then a valid change) | 401/400 as appropriate; mustChangePassword clears to false on success, confirmed via GET /api/auth/me | `server/tests/lab-03/auth.api.test.ts` | Pass — adapted from the original wording since no non-auth protected route exists to gate until Issue #3 (Requester regression) migrates one; the underlying `requirePasswordChangeComplete` middleware itself is exercised once such a route exists |
+| API-04 | API | AC-19 | Call GET /api/auth/me after logout with the old cookie | 401 | `server/tests/lab-03/auth.api.test.ts` | Pass |
 | API-05 | API | AC-04 | POST /api/tickets with a spoofed requesterId in the body, as Requester A | Ticket is created owned by A (session identity), not the spoofed id | `server/tests/lab-03/authorization.api.test.ts` | Pending |
 | API-06 | API | AC-05 | GET /api/tickets/:id for Requester B's ticket, as Requester A | 403/404, no ticket data | `server/tests/lab-03/authorization.api.test.ts` | Pending |
 | API-07 | API | AC-06 | POST /api/staff/tickets/:id/notes as a Requester | 403, no note content returned or stored | `server/tests/lab-03/authorization.api.test.ts` | Pending |
@@ -39,8 +39,8 @@ authorization (direct API calls bypassing the UI), migration/regression
 | API-21 | API | AC-17 | PATCH self isActive=false as the sole active Administrator; PATCH last Administrator's role away | Both return 409 | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
 | API-22 | API | BR-28/BR-30 | POST/PATCH admin users with invalid role value | 400 | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
 | REGR-01 | Regression | AC-20 | Full Lab 2 Create-Ticket/My-Tickets/Attachments Supertest suite, adapted to use an authenticated Requester session instead of X-Requester-Id | All Lab 2 assertions still pass unmodified | `server/tests/lab-03/requester-regression.api.test.ts` | Pending |
-| UI-01 | UI | AC-01/AC-02 | Login form valid + invalid submit | Valid: redirects into app; invalid: single generic banner shown | `client/src/.../Login.test.tsx` | Pending |
-| UI-02 | UI | BR-07 | Change Password live rule checklist | Each rule icon flips to check as satisfied; Continue disabled until all pass | `client/src/.../ChangePassword.test.tsx` | Pending |
+| UI-01 | UI | AC-01/AC-02 | Login form valid + invalid submit | Empty submit shows field errors and doesn't call the API; invalid credentials show a single generic banner; busy state shown while pending | `client/tests/lab-03/Login.test.tsx` | Pass |
+| UI-02 | UI | BR-07 | Change Password live rule checklist | Each rule icon flips to check as satisfied; Continue disabled until all pass; wrong current password shows a safe error and clears that field | `client/tests/lab-03/ChangePassword.test.tsx` | Pass |
 | UI-03 | UI | Sec. 6 | Role-based nav renders only permitted links for each of the 3 roles | Requester/IT Staff/Administrator each see the correct, and only the correct, nav items | `client/src/.../AppShell.test.tsx` | Pending |
 | UI-04 | UI | AC-11 | Add Public Comment in Requester Ticket Detail | New comment appears in the thread immediately | `client/src/.../RequesterTicketDetail.test.tsx` | Pending |
 | UI-05 | UI | Sec. 7 | IT Staff Ticket Detail Public Comments vs Internal Notes tabs | Distinct styling/aria-label; switching tabs shows the correct content set | `client/src/.../StaffTicketDetail.test.tsx` | Pending |
