@@ -35,7 +35,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <Link
               to="/tickets"
               className="text-white text-decoration-none"
-              style={isActive("/tickets") ? { textDecoration: "underline", fontWeight: 600 } : {}}
+              style={isActive("/tickets") && !isActive("/tickets/new") ? { textDecoration: "underline", fontWeight: 600 } : {}}
             >
               My Tickets
             </Link>
@@ -45,6 +45,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
               style={isActive("/tickets/new") ? { textDecoration: "underline", fontWeight: 600 } : {}}
             >
               Create Ticket
+            </Link>
+          </nav>
+        )}
+
+        {user && (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") && (
+          <nav className="d-flex gap-3">
+            <Link
+              to="/staff/queue"
+              className="text-white text-decoration-none"
+              style={isActive("/staff/queue") ? { textDecoration: "underline", fontWeight: 600 } : {}}
+            >
+              Ticket Queue
             </Link>
           </nav>
         )}

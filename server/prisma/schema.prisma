@@ -40,7 +40,8 @@ model User {
   mustChangePassword  Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
-  tickets             Ticket[]
+  tickets             Ticket[] @relation("TicketRequester")
+  ownedTickets        Ticket[] @relation("TicketOwner")
   publicComments      PublicComment[]
 }
 
@@ -70,7 +71,11 @@ model Ticket {
   id                Int           @id @default(autoincrement())
   ticketNumber      String        @unique
   requesterId       Int
-  requester         User          @relation(fields: [requesterId], references: [id])
+  requester         User          @relation("TicketRequester", fields: [requesterId], references: [id])
+  // Lab 3 Issue #32 (BR-14): the claim/reassign mutation lands in Issue
+  // #33, but the Queue needs this column now to show/filter by owner.
+  ticketOwnerId     Int?
+  ticketOwner       User?         @relation("TicketOwner", fields: [ticketOwnerId], references: [id])
   categoryId        Int
   category          Category      @relation(fields: [categoryId], references: [id])
   relatedSystemId   Int
@@ -90,9 +95,12 @@ model Ticket {
   publicComments    PublicComment[]
 
   @@index([requesterId])
+  @@index([ticketOwnerId])
   @@index([categoryId])
   @@index([relatedSystemId])
   @@index([createdAt])
+  @@index([currentStatus])
+  @@index([itPriority])
 }
 
 // ---------------------------------------------------------------------------

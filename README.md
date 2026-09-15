@@ -82,9 +82,12 @@ first-login password change; role-based authorization (Requester / IT Staff
 / Administrator) enforced server-side. The Lab 2 Development Requester
 selector has been fully removed — all Requester ticket/attachment functions
 now run on the authenticated session, with Public Comments and a
-"Problem Appears Resolved" action added to Ticket Detail. Remaining Lab 3
-work (IT Staff Ticket Queue and operations, Internal Notes, Administrator
-user management) tracked in the `TokTickIT-Lab3` GitHub Project.
+"Problem Appears Resolved" action added to Ticket Detail. IT Staff/
+Administrator now have a Ticket Queue (search/filter/sort/pagination
+across all Requesters, owner filter). Remaining Lab 3 work (claim/
+reassign ownership, IT Priority, status workflow, Internal Notes,
+Administrator user management) tracked in the `TokTickIT-Lab3` GitHub
+Project.
 
 ## Project Structure
 
