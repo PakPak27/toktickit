@@ -78,6 +78,16 @@ describe("GET /api/staff/tickets (AC-14, AC-18)", () => {
     expect(mine.body.data.length).toBe(0); // none claimed yet — claiming lands in Issue #33
   });
 
+  // Regression test for the PR #38 review finding: an invalid categoryId
+  // or itPriority must fall back silently (BR-14), never 500 at Prisma.
+  it("ignores a non-numeric categoryId and an out-of-enum itPriority instead of erroring", async () => {
+    const res = await staffAgent
+      .get("/api/staff/tickets")
+      .query({ search: MARKER, categoryId: "abc", itPriority: "URGENT", pageSize: 50 });
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBe(3);
+  });
+
   it("paginates and falls back to defaults for invalid params (BR-14)", async () => {
     const res = await staffAgent
       .get("/api/staff/tickets")

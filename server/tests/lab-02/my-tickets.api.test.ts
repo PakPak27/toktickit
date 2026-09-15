@@ -95,6 +95,16 @@ describe("GET /api/tickets", () => {
     expect(res.body.pagination.totalItems).toBe(0);
   });
 
+  // Same latent bug the PR #38 review caught on the staff queue — this
+  // Requester-side endpoint had the identical unvalidated-filter defect.
+  it("ignores a non-numeric categoryId and an out-of-enum priority instead of erroring", async () => {
+    const res = await agentA
+      .get("/api/tickets")
+      .query({ search: MARKER_A, categoryId: "abc", itPriority: "URGENT", requestedPriority: "URGENT" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBe(3);
+  });
+
   it("falls back to defaults for invalid sort/order/pageSize params (BR-14)", async () => {
     const res = await agentA.get("/api/tickets").query({ sort: "invalidField", order: "sideways", pageSize: 999 });
 

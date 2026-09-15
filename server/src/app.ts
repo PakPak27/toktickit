@@ -27,6 +27,14 @@ const requireStaffSession = [
   requireRole("IT_STAFF", "ADMINISTRATOR"),
 ];
 
+// Shared query-param guards: an unrecognized value is ignored (falls back
+// to "no filter"), never passed through to Prisma — an invalid enum value
+// or a non-integer id would otherwise throw at the database layer (500)
+// instead of failing safely (BR-14-style behavior).
+const KNOWN_PRIORITY_VALUES: string[] = ["LOW", "MEDIUM", "HIGH"];
+// currentStatus only has NEW until Issue #33 introduces the full workflow enum.
+const KNOWN_STATUS_VALUES: string[] = ["NEW"];
+
 export const app = express();
 
 // A credentialed (cookie-bearing) cross-origin request needs an explicit
@@ -156,16 +164,17 @@ app.get("/api/tickets", ...requireRequesterSession, async (req: Request, res: Re
         { summary: { contains: search, mode: "insensitive" } },
       ];
     }
-    if (req.query.categoryId) {
-      where.categoryId = Number(req.query.categoryId);
+    const categoryIdParam = Number(req.query.categoryId);
+    if (req.query.categoryId && Number.isInteger(categoryIdParam)) {
+      where.categoryId = categoryIdParam;
     }
-    if (req.query.requestedPriority) {
+    if (req.query.requestedPriority && KNOWN_PRIORITY_VALUES.includes(String(req.query.requestedPriority))) {
       where.requestedPriority = String(req.query.requestedPriority);
     }
-    if (req.query.itPriority) {
+    if (req.query.itPriority && KNOWN_PRIORITY_VALUES.includes(String(req.query.itPriority))) {
       where.itPriority = String(req.query.itPriority);
     }
-    if (req.query.currentStatus) {
+    if (req.query.currentStatus && KNOWN_STATUS_VALUES.includes(String(req.query.currentStatus))) {
       where.currentStatus = String(req.query.currentStatus);
     }
 
@@ -525,10 +534,6 @@ app.delete("/api/attachments/:id", ...requireRequesterSession, async (req: Reque
 // ---------------------------------------------------------------------------
 const STAFF_SORTABLE_FIELDS = ["status", "createdAt", "itPriority", "updatedAt"] as const;
 type StaffSortField = (typeof STAFF_SORTABLE_FIELDS)[number];
-// currentStatus only has NEW until Issue #33 introduces the full workflow
-// enum — filtering by any other value is treated the same as "no filter"
-// (BR-14-style silent fallback), never a Prisma runtime error.
-const KNOWN_STATUS_VALUES: string[] = ["NEW"];
 
 app.get("/api/staff/tickets", ...requireStaffSession, async (req: Request, res: Response) => {
   try {
@@ -555,10 +560,11 @@ app.get("/api/staff/tickets", ...requireStaffSession, async (req: Request, res: 
         { summary: { contains: search, mode: "insensitive" } },
       ];
     }
-    if (req.query.categoryId) {
-      where.categoryId = Number(req.query.categoryId);
+    const categoryIdParam = Number(req.query.categoryId);
+    if (req.query.categoryId && Number.isInteger(categoryIdParam)) {
+      where.categoryId = categoryIdParam;
     }
-    if (req.query.itPriority) {
+    if (req.query.itPriority && KNOWN_PRIORITY_VALUES.includes(String(req.query.itPriority))) {
       where.itPriority = req.query.itPriority as Prisma.TicketWhereInput["itPriority"];
     }
     if (req.query.currentStatus && KNOWN_STATUS_VALUES.includes(String(req.query.currentStatus))) {
