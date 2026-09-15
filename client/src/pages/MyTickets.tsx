@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchMyTickets, TicketListItem } from "../api/myTickets.js";
 import { fetchCategories, CategoryDto } from "../api/tickets.js";
-import { useRequester } from "../context/RequesterContext.js";
 
 type LoadState = "loading" | "success" | "error";
 
@@ -25,8 +24,6 @@ function PriorityBadge({ value }: { value: string | null }) {
 }
 
 export default function MyTickets() {
-  const { requester } = useRequester();
-
   const [tickets, setTickets] = useState<TicketListItem[]>([]);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [totalItems, setTotalItems] = useState(0);
@@ -48,9 +45,8 @@ export default function MyTickets() {
   }, []);
 
   useEffect(() => {
-    if (!requester) return;
     setLoadState("loading");
-    fetchMyTickets(requester.id, {
+    fetchMyTickets({
       search: search || undefined,
       categoryId: categoryFilter ? Number(categoryFilter) : undefined,
       requestedPriority: priorityFilter || undefined,
@@ -66,7 +62,7 @@ export default function MyTickets() {
         setLoadState("success");
       })
       .catch(() => setLoadState("error"));
-  }, [requester, search, categoryFilter, priorityFilter, statusFilter, sort, order, page, pageSize]);
+  }, [search, categoryFilter, priorityFilter, statusFilter, sort, order, page, pageSize]);
 
   function clearFilters() {
     setSearch("");

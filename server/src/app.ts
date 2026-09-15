@@ -9,6 +9,16 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { authRouter } from "./authRoutes.js";
+import { requireAuth, requirePasswordChangeComplete, requireRole } from "./authMiddleware.js";
+
+// Lab 2's Requester ticket/attachment endpoints, now gated by an
+// authenticated Requester session (BR-09) instead of a client-supplied
+// X-Requester-Id header.
+const requireRequesterSession = [requireAuth, requirePasswordChangeComplete, requireRole("REQUESTER")];
+// Comments are shared across roles (Requester on their own Ticket, any IT
+// Staff/Administrator) — only authentication + the password gate apply here;
+// per-request ownership is checked inside each handler.
+const requireAuthenticatedSession = [requireAuth, requirePasswordChangeComplete];
 
 export const app = express();
 
@@ -44,20 +54,6 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
   }
 });
 
-app.get("/api/requesters", async (_req: Request, res: Response) => {
-  try {
-    const requesters = await getPrisma().user.findMany({
-      where: { isActive: true, role: "REQUESTER" },
-      orderBy: { id: "asc" },
-      select: { id: true, name: true, email: true },
-    });
-    res.status(200).json(requesters);
-  } catch (err) {
-    console.error("Failed to fetch requesters:", err);
-    res.status(500).json({ error: "Unable to load requesters" });
-  }
-});
-
 app.get("/api/related-systems", async (_req: Request, res: Response) => {
   try {
     const relatedSystems = await getPrisma().relatedSystem.findMany({
@@ -72,22 +68,12 @@ app.get("/api/related-systems", async (_req: Request, res: Response) => {
   }
 });
 
-app.post("/api/tickets", async (req: Request, res: Response) => {
-  const requesterIdHeader = req.header("X-Requester-Id");
-  const requesterId = requesterIdHeader ? Number(requesterIdHeader) : NaN;
-
-  if (!requesterIdHeader || Number.isNaN(requesterId)) {
-    return res.status(400).json({ error: "A valid, active requester is required" });
-  }
+app.post("/api/tickets", ...requireRequesterSession, async (req: Request, res: Response) => {
+  // BR-09/AC-04: ownership comes from the session, never a client-supplied
+  // requesterId — even if the request body includes one, it is ignored.
+  const requesterId = req.user!.id;
 
   try {
-    const requester = await getPrisma().user.findUnique({
-      where: { id: requesterId },
-    });
-    if (!requester || !requester.isActive) {
-      return res.status(400).json({ error: "A valid, active requester is required" });
-    }
-
     const { categoryId, relatedSystemId, summary, description, requestedPriority } = req.body;
 
     const fieldErrors = validateTicketInput({
@@ -136,20 +122,10 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
 const SORTABLE_FIELDS = ["createdAt", "ticketNumber", "updatedAt"] as const;
 const ALLOWED_PAGE_SIZES = [10, 20, 50];
 
-app.get("/api/tickets", async (req: Request, res: Response) => {
-  const requesterIdHeader = req.header("X-Requester-Id");
-  const requesterId = requesterIdHeader ? Number(requesterIdHeader) : NaN;
-
-  if (!requesterIdHeader || Number.isNaN(requesterId)) {
-    return res.status(400).json({ error: "A valid, active requester is required" });
-  }
+app.get("/api/tickets", ...requireRequesterSession, async (req: Request, res: Response) => {
+  const requesterId = req.user!.id;
 
   try {
-    const requester = await getPrisma().user.findUnique({ where: { id: requesterId } });
-    if (!requester || !requester.isActive) {
-      return res.status(400).json({ error: "A valid, active requester is required" });
-    }
-
     const sortParam = String(req.query.sort ?? "createdAt");
     const sort = (SORTABLE_FIELDS as readonly string[]).includes(sortParam)
       ? (sortParam as typeof SORTABLE_FIELDS[number])
@@ -238,14 +214,10 @@ const upload = multer({
   },
 });
 
-app.get("/api/tickets/:id", async (req: Request, res: Response) => {
-  const requesterIdHeader = req.header("X-Requester-Id");
-  const requesterId = requesterIdHeader ? Number(requesterIdHeader) : NaN;
+app.get("/api/tickets/:id", ...requireRequesterSession, async (req: Request, res: Response) => {
+  const requesterId = req.user!.id;
   const ticketId = Number(req.params.id);
 
-  if (!requesterIdHeader || Number.isNaN(requesterId)) {
-    return res.status(400).json({ error: "A valid, active requester is required" });
-  }
   if (Number.isNaN(ticketId)) {
     return res.status(404).json({ error: "Ticket not found" });
   }
@@ -274,8 +246,134 @@ app.get("/api/tickets/:id", async (req: Request, res: Response) => {
   }
 });
 
+// BR-23 to BR-27: Public Comments are shared between a Ticket's owning
+// Requester and any IT Staff/Administrator; only a Requester is ownership-
+// checked, since IT Staff/Administrator manage every Ticket (their scoped
+// Ticket Queue view lands in a later Issue).
+async function loadTicketForCommentAccess(req: Request, res: Response, ticketId: number) {
+  const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+  if (!ticket) {
+    res.status(404).json({ error: "Ticket not found" });
+    return null;
+  }
+  if (req.user!.role === "REQUESTER" && ticket.requesterId !== req.user!.id) {
+    res.status(403).json({ error: "You do not have access to this ticket" });
+    return null;
+  }
+  return ticket;
+}
+
+app.post("/api/tickets/:id/comments", ...requireAuthenticatedSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+
+  if (Number.isNaN(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+  if (!content || content.length > 2000) {
+    return res.status(400).json({ error: "Comment content is required (1-2000 characters)" });
+  }
+
+  try {
+    const ticket = await loadTicketForCommentAccess(req, res, ticketId);
+    if (!ticket) return;
+
+    const comment = await getPrisma().publicComment.create({
+      data: { ticketId, authorId: req.user!.id, content },
+    });
+
+    res.status(201).json({
+      id: comment.id,
+      ticketId,
+      authorId: req.user!.id,
+      authorName: req.user!.name,
+      authorRole: req.user!.role,
+      content: comment.content,
+      createdAt: comment.createdAt,
+    });
+  } catch (err) {
+    console.error("Failed to post comment:", err);
+    res.status(500).json({ error: "Unable to post comment" });
+  }
+});
+
+app.get("/api/tickets/:id/comments", ...requireAuthenticatedSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  if (Number.isNaN(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+
+  try {
+    const ticket = await loadTicketForCommentAccess(req, res, ticketId);
+    if (!ticket) return;
+
+    const comments = await getPrisma().publicComment.findMany({
+      where: { ticketId },
+      orderBy: { createdAt: "asc" },
+      include: { author: { select: { name: true, role: true } } },
+    });
+
+    res.status(200).json(
+      comments.map((c) => ({
+        id: c.id,
+        ticketId,
+        authorId: c.authorId,
+        authorName: c.author.name,
+        authorRole: c.author.role,
+        content: c.content,
+        createdAt: c.createdAt,
+      }))
+    );
+  } catch (err) {
+    console.error("Failed to fetch comments:", err);
+    res.status(500).json({ error: "Unable to load comments" });
+  }
+});
+
+// BR-21/BR-22: a Requester signal for IT Staff, never a formal status
+// change — see specification.md §5.5.
+const TERMINAL_STATUSES: string[] = ["CLOSED", "CANCELLED"];
+
+app.post(
+  "/api/tickets/:id/resolved-confirmation",
+  ...requireRequesterSession,
+  async (req: Request, res: Response) => {
+    const ticketId = Number(req.params.id);
+    if (Number.isNaN(ticketId)) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    try {
+      const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      if (ticket.requesterId !== req.user!.id) {
+        return res.status(403).json({ error: "You do not have access to this ticket" });
+      }
+      if (TERMINAL_STATUSES.includes(ticket.currentStatus)) {
+        return res.status(409).json({ error: "This ticket can no longer be updated" });
+      }
+
+      const updated = await getPrisma().ticket.update({
+        where: { id: ticketId },
+        data: { requesterConfirmedResolved: true, requesterConfirmedResolvedAt: new Date() },
+      });
+
+      res.status(200).json({
+        requesterConfirmedResolved: updated.requesterConfirmedResolved,
+        requesterConfirmedResolvedAt: updated.requesterConfirmedResolvedAt,
+      });
+    } catch (err) {
+      console.error("Failed to record resolved confirmation:", err);
+      res.status(500).json({ error: "Unable to update ticket" });
+    }
+  }
+);
+
 app.post(
   "/api/tickets/:id/attachments",
+  ...requireRequesterSession,
   (req: Request, res: Response, next) => {
     upload.single("file")(req, res, (err) => {
       if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
@@ -298,14 +396,9 @@ app.post(
     };
 
     try {
-      const requesterIdHeader = req.header("X-Requester-Id");
-      const requesterId = requesterIdHeader ? Number(requesterIdHeader) : NaN;
+      const requesterId = req.user!.id;
       const ticketId = Number(req.params.id);
 
-      if (!requesterIdHeader || Number.isNaN(requesterId)) {
-        cleanupFile();
-        return res.status(400).json({ error: "A valid, active requester is required" });
-      }
       if (Number.isNaN(ticketId)) {
         cleanupFile();
         return res.status(404).json({ error: "Ticket not found" });
@@ -351,14 +444,9 @@ app.post(
   }
 );
 
-app.get("/api/attachments/:id/download", async (req: Request, res: Response) => {
-  const requesterIdHeader = req.header("X-Requester-Id");
-  const requesterId = requesterIdHeader ? Number(requesterIdHeader) : NaN;
+app.get("/api/attachments/:id/download", ...requireRequesterSession, async (req: Request, res: Response) => {
+  const requesterId = req.user!.id;
   const attachmentId = Number(req.params.id);
-
-  if (!requesterIdHeader || Number.isNaN(requesterId)) {
-    return res.status(400).json({ error: "A valid, active requester is required" });
-  }
 
   try {
     const attachment = await getPrisma().attachment.findUnique({
@@ -384,15 +472,11 @@ app.get("/api/attachments/:id/download", async (req: Request, res: Response) => 
   }
 });
 
-app.delete("/api/attachments/:id", async (req: Request, res: Response) => {
-  const requesterIdHeader = req.header("X-Requester-Id");
-  const requesterId = requesterIdHeader ? Number(requesterIdHeader) : NaN;
+app.delete("/api/attachments/:id", ...requireRequesterSession, async (req: Request, res: Response) => {
+  const requesterId = req.user!.id;
   const attachmentId = Number(req.params.id);
   const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
 
-  if (!requesterIdHeader || Number.isNaN(requesterId)) {
-    return res.status(400).json({ error: "A valid, active requester is required" });
-  }
   if (reason.length < 3 || reason.length > 200) {
     return res.status(400).json({ error: "A removal reason of at least 3 characters is required" });
   }

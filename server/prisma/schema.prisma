@@ -41,6 +41,7 @@ model User {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   tickets             Ticket[]
+  publicComments      PublicComment[]
 }
 
 // ---------------------------------------------------------------------------
@@ -79,14 +80,36 @@ model Ticket {
   requestedPriority Priority
   itPriority        Priority?
   currentStatus     TicketStatus  @default(NEW)
+  // Lab 3 Issue #31 (BR-21/BR-22): a Requester-set signal that IT Staff
+  // review, never a formal status change — see specification.md §5.5.
+  requesterConfirmedResolved   Boolean   @default(false)
+  requesterConfirmedResolvedAt DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   attachments       Attachment[]
+  publicComments    PublicComment[]
 
   @@index([requesterId])
   @@index([categoryId])
   @@index([relatedSystemId])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Lab 3 Issue #31 — Public Comments (BR-23 to BR-27): shared, append-only
+// communication on a Ticket, visible to its Requester, IT Staff, and
+// Administrator alike.
+// ---------------------------------------------------------------------------
+model PublicComment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
 }
 
 model Attachment {

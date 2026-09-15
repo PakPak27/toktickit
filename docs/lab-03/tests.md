@@ -20,33 +20,34 @@ authorization (direct API calls bypassing the UI), migration/regression
 | API-02 | API | AC-02 | Login with wrong password AND with inactive account | Both return identical 401 body | `server/tests/lab-03/auth.api.test.ts` | Pass |
 | API-03 | API | AC-03 | Login as mustChangePassword user, then exercise the change-password gate (wrong current password, weak new password, then a valid change) | 401/400 as appropriate; mustChangePassword clears to false on success, confirmed via GET /api/auth/me | `server/tests/lab-03/auth.api.test.ts` | Pass — adapted from the original wording since no non-auth protected route exists to gate until Issue #3 (Requester regression) migrates one; the underlying `requirePasswordChangeComplete` middleware itself is exercised once such a route exists |
 | API-04 | API | AC-19 | Call GET /api/auth/me after logout with the old cookie | 401 | `server/tests/lab-03/auth.api.test.ts` | Pass |
-| API-05 | API | AC-04 | POST /api/tickets with a spoofed requesterId in the body, as Requester A | Ticket is created owned by A (session identity), not the spoofed id | `server/tests/lab-03/authorization.api.test.ts` | Pending |
-| API-06 | API | AC-05 | GET /api/tickets/:id for Requester B's ticket, as Requester A | 403/404, no ticket data | `server/tests/lab-03/authorization.api.test.ts` | Pending |
-| API-07 | API | AC-06 | POST /api/staff/tickets/:id/notes as a Requester | 403, no note content returned or stored | `server/tests/lab-03/authorization.api.test.ts` | Pending |
+| API-05 | API | AC-04 | POST /api/tickets with a spoofed requesterId in the body, as Requester A | Ticket is created owned by A (session identity), not the spoofed id | `server/tests/lab-02/create-ticket.api.test.ts` | Pass — moved in-file with the rest of ticket creation rather than a separate authorization.api.test.ts, since it's the same endpoint/fixtures |
+| API-06 | API | AC-05 | GET /api/tickets/:id for Requester B's ticket, as Requester A | 403/404, no ticket data | `server/tests/lab-02/ticket-detail.api.test.ts` | Pass — same reasoning as API-05 |
+| API-07 | API | AC-06 | POST /api/staff/tickets/:id/notes as a Requester | 403, no note content returned or stored | `server/tests/lab-03/authorization.api.test.ts` | Pending (Issue #33 — Internal Notes/staff endpoints don't exist yet) |
 | API-08 | API | AC-18 | Call every /api/admin/* and /api/staff/* endpoint as a Requester | All return 403 | `server/tests/lab-03/authorization.api.test.ts` | Pending |
 | API-09 | API | AC-07 | PATCH /api/staff/tickets/:id/owner on an unassigned ticket | 200; ticketOwner set to the claiming IT Staff user | `server/tests/lab-03/staff-queue.api.test.ts` | Pending |
 | API-10 | API | AC-08 | PATCH owner from IT Staff A to IT Staff B (reassignment) | 200; ticketOwner updates to B | `server/tests/lab-03/staff-queue.api.test.ts` | Pending |
 | API-11 | API | AC-09 | PATCH status NEW -> RESOLVED directly | 400; validNextStatuses list returned; status unchanged | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pending |
 | API-12 | API | AC-10 | PATCH status to RESOLVED on an unassigned ticket | 409; status unchanged | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pending |
 | API-13 | API | Sec. 5.5 | Walk every matrix-valid transition end-to-end (NEW->OPEN->IN_PROGRESS->RESOLVED->CLOSED->REOPENED) | Each succeeds in sequence | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pending |
-| API-14 | API | AC-11 | POST Public Comment as Requester, then GET as IT Staff on same ticket | Comment visible to both with correct author/role | `server/tests/lab-03/comments-notes.api.test.ts` | Pending |
-| API-15 | API | AC-12 | POST Internal Note as IT Staff, then GET /api/tickets/:id as the owning Requester | Note never appears in the Requester-facing response | `server/tests/lab-03/comments-notes.api.test.ts` | Pending |
-| API-16 | API | BR-26 | POST comment/note with whitespace-only content | 400; nothing stored | `server/tests/lab-03/comments-notes.api.test.ts` | Pending |
-| API-17 | API | AC-13 | POST resolved-confirmation as owning Requester, then GET ticket as IT Staff | requesterConfirmedResolved true; currentStatus unchanged | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pending |
+| API-14 | API | AC-11 | POST Public Comment as Requester, then GET as owner | Comment visible with correct author/role; the IT-Staff-can-also-see-it half is re-verified once Issue #33 adds a Staff-side read | `server/tests/lab-02/ticket-detail.api.test.ts` | Pass (Requester half); Pending (IT Staff half, Issue #33) |
+| API-15 | API | AC-12 | POST Internal Note as IT Staff, then GET /api/tickets/:id as the owning Requester | Note never appears in the Requester-facing response | `server/tests/lab-03/comments-notes.api.test.ts` | Pending (Issue #33 — Internal Notes don't exist yet) |
+| API-16 | API | BR-26 | POST comment with whitespace-only content | 400; nothing stored | `server/tests/lab-02/ticket-detail.api.test.ts` | Pass |
+| API-17 | API | AC-13 | POST resolved-confirmation as owning Requester | requesterConfirmedResolved true; currentStatus unchanged; a non-owning Requester is rejected | `server/tests/lab-02/ticket-detail.api.test.ts` | Pass — the "then GET ticket as IT Staff" half is re-verified once Issue #33 adds Staff Ticket Detail |
 | API-18 | API | AC-14 | GET /api/staff/tickets with search/filter/sort/page across 40+ seeded tickets | Returned subset/order/pagination match query params | `server/tests/lab-03/staff-queue.api.test.ts` | Pending |
 | API-19 | API | AC-15 | POST /api/admin/users with an existing email | 409; field=email; no duplicate row | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
 | API-20 | API | AC-16 | POST reset-password, then login with the new password | mustChangePassword true on the next /api/auth/me | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
 | API-21 | API | AC-17 | PATCH self isActive=false as the sole active Administrator; PATCH last Administrator's role away | Both return 409 | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
 | API-22 | API | BR-28/BR-30 | POST/PATCH admin users with invalid role value | 400 | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
-| REGR-01 | Regression | AC-20 | Full Lab 2 Create-Ticket/My-Tickets/Attachments Supertest suite, adapted to use an authenticated Requester session instead of X-Requester-Id | All Lab 2 assertions still pass unmodified | `server/tests/lab-03/requester-regression.api.test.ts` | Pending |
+| REGR-01 | Regression | AC-20 | Full Lab 2 Create-Ticket/My-Tickets/Attachments Supertest suite, adapted to use an authenticated Requester session instead of X-Requester-Id | All Lab 2 assertions still pass unmodified | `server/tests/lab-02/{create-ticket,my-tickets,ticket-detail,attachments}.api.test.ts` | Pass — updated in place rather than duplicated into a separate lab-03 file, since they are literally the same assertions now driven by session auth (see helper `server/tests/lab-03/helpers.ts`) |
 | UI-01 | UI | AC-01/AC-02 | Login form valid + invalid submit | Empty submit shows field errors and doesn't call the API; invalid credentials show a single generic banner; busy state shown while pending | `client/tests/lab-03/Login.test.tsx` | Pass |
 | UI-02 | UI | BR-07 | Change Password live rule checklist | Each rule icon flips to check as satisfied; Continue disabled until all pass; wrong current password shows a safe error and clears that field | `client/tests/lab-03/ChangePassword.test.tsx` | Pass |
 | UI-03 | UI | Sec. 6 | Role-based nav renders only permitted links for each of the 3 roles | Requester/IT Staff/Administrator each see the correct, and only the correct, nav items | `client/src/.../AppShell.test.tsx` | Pending |
-| UI-04 | UI | AC-11 | Add Public Comment in Requester Ticket Detail | New comment appears in the thread immediately | `client/src/.../RequesterTicketDetail.test.tsx` | Pending |
+| UI-04 | UI | AC-11 | Add Public Comment in Requester Ticket Detail | New comment appears in the thread immediately | `client/tests/lab-02/TicketDetail.test.tsx` | Pass |
 | UI-05 | UI | Sec. 7 | IT Staff Ticket Detail Public Comments vs Internal Notes tabs | Distinct styling/aria-label; switching tabs shows the correct content set | `client/src/.../StaffTicketDetail.test.tsx` | Pending |
 | UI-06 | UI | AC-09 | Status dropdown in IT Staff Ticket Detail for a NEW ticket | Only matrix-valid next statuses appear as options | `client/src/.../StaffTicketDetail.test.tsx` | Pending |
 | UI-07 | UI | Sec. 6 | Ticket Queue empty vs no-results states | Distinct copy/UI for 0-system-wide-tickets vs 0-matches-for-filter | `client/src/.../StaffTicketQueue.test.tsx` | Pending |
 | UI-08 | UI | AC-15/AC-17 | User Management create-duplicate-email and self-deactivate attempts | Inline field error / inline toggle-revert message shown, no request loop | `client/src/.../UserManagement.test.tsx` | Pending |
+| UI-09 | UI | AC-13 | "Problem Appears Resolved" action | Button replaced by a confirmation badge once clicked; button never reappears | `client/tests/lab-02/TicketDetail.test.tsx` | Pass |
 | STYLE-01 | UI Style | Sec. 1 | Role and status badge color classes | Correct class per role/status value; text label always present | `client/src/.../badges.test.tsx` | Pending |
 | RESP-01 | Responsive | Sec. 10 | Login + Ticket Queue + Staff Ticket Detail + User Management screenshots at 1280/900/375px | No clipping, overlap, or horizontal scroll at any viewport | `artifacts/lab-03/screenshots/**/*.png` via `e2e/lab-03/visual.spec.ts` | Pending |
 | E2E-01 | E2E | AC-01, AC-03 | Login with a mustChangePassword seed account, change password, reach the authenticated shell | Redirect sequence completes; role-correct home screen shown | `e2e/lab-03/authentication.spec.ts` | Pending |
@@ -71,7 +72,7 @@ authorization (direct API calls bypassing the UI), migration/regression
 | AC-10 | API-12 |
 | AC-11 | API-14, UI-04, E2E-03 |
 | AC-12 | API-15, E2E-03 |
-| AC-13 | API-17 |
+| AC-13 | API-17, UI-09 |
 | AC-14 | API-18 |
 | AC-15 | API-19, UI-08, E2E-04 |
 | AC-16 | API-20, E2E-04 |
