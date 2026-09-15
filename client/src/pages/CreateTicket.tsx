@@ -7,14 +7,11 @@ import {
   RelatedSystemDto,
   TicketValidationError,
 } from "../api/tickets.js";
-import { useRequester } from "../context/RequesterContext.js";
 
 type Priority = "LOW" | "MEDIUM" | "HIGH";
 type SubmitState = "idle" | "submitting" | "success" | "error";
 
 export default function CreateTicket() {
-  const { requester } = useRequester();
-
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<RelatedSystemDto[]>([]);
   const [refDataError, setRefDataError] = useState(false);
@@ -69,7 +66,6 @@ export default function CreateTicket() {
 
 async function handleSubmit(e: React.FormEvent) {
   e.preventDefault();
-  if (!requester) return;
 
   setSubmitError("");
 
@@ -85,7 +81,7 @@ async function handleSubmit(e: React.FormEvent) {
   setSubmitState("submitting");
 
   try {
-    const result = await createTicket(requester.id, {
+    const result = await createTicket({
       categoryId: categoryId as number,
       relatedSystemId: relatedSystemId as number,
       summary,

@@ -42,15 +42,13 @@ export async function fetchRelatedSystems(): Promise<RelatedSystemDto[]> {
   return res.json();
 }
 
-export async function createTicket(requesterId: number, input: CreateTicketInput) {
+export async function createTicket(input: CreateTicketInput) {
   let res: Response;
   try {
     res = await fetch(`${API_URL}/api/tickets`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Requester-Id": String(requesterId),
-      },
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
   } catch {

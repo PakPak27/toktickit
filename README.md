@@ -78,11 +78,13 @@ Requester Ticket Detail with attachment upload/download/soft-removal, responsive
 Zen Green UI, full E2E/visual test coverage.
 
 **Lab 3 (in progress):** email/password authentication with mandatory
-first-login password change, replacing the Lab 2 Development Requester
-selector; role-based authorization (Requester / IT Staff / Administrator)
-enforced server-side. Remaining Lab 3 work (IT Staff Ticket Queue and
-operations, Public Comments/Internal Notes, Administrator user management)
-tracked in the `TokTickIT-Lab3` GitHub Project.
+first-login password change; role-based authorization (Requester / IT Staff
+/ Administrator) enforced server-side. The Lab 2 Development Requester
+selector has been fully removed — all Requester ticket/attachment functions
+now run on the authenticated session, with Public Comments and a
+"Problem Appears Resolved" action added to Ticket Detail. Remaining Lab 3
+work (IT Staff Ticket Queue and operations, Internal Notes, Administrator
+user management) tracked in the `TokTickIT-Lab3` GitHub Project.
 
 ## Project Structure
 

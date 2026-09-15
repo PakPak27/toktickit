@@ -2,26 +2,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import CreateTicket from "../../src/pages/CreateTicket.js";
-import { RequesterProvider } from "../../src/context/RequesterContext.js";
 import * as ticketsApi from "../../src/api/tickets.js";
 
 function renderPage() {
-  localStorage.setItem(
-    "toktickit.selectedRequester",
-    JSON.stringify({ id: 1, name: "Jennifer Anderson", email: "jennifer.anderson@example.com" })
-  );
   return render(
     <BrowserRouter>
-      <RequesterProvider>
-        <CreateTicket />
-      </RequesterProvider>
+      <CreateTicket />
     </BrowserRouter>
   );
 }
 
 describe("CreateTicket", () => {
   beforeEach(() => {
-    localStorage.clear();
     vi.spyOn(ticketsApi, "fetchCategories").mockResolvedValue([
       { id: 1, name: "Hardware" },
     ]);

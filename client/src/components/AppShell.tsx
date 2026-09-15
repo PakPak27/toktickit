@@ -1,15 +1,21 @@
 import { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useRequester } from "../context/RequesterContext.js";
+import { useAuth } from "../context/AuthContext.js";
+
+const ROLE_LABELS: Record<string, string> = {
+  REQUESTER: "Requester",
+  IT_STAFF: "IT Staff",
+  ADMINISTRATOR: "Administrator",
+};
 
 export default function AppShell({ children }: { children: ReactNode }) {
-  const { requester, clearRequester } = useRequester();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
-  function handleChangeRequester() {
-    clearRequester();
-    navigate("/");
+  async function handleLogout() {
+    await logout();
+    navigate("/login");
   }
 
   const isActive = (path: string) => location.pathname.startsWith(path);
@@ -24,7 +30,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           TokTickIT
         </Link>
 
-        {requester && (
+        {user && user.role === "REQUESTER" && (
           <nav className="d-flex gap-3">
             <Link
               to="/tickets"
@@ -43,14 +49,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </nav>
         )}
 
-        {requester && (
+        {user && (
           <div className="d-flex align-items-center gap-3">
-            <span className="small">{requester.name}</span>
-            <button
-              className="btn btn-sm btn-outline-light"
-              onClick={handleChangeRequester}
-            >
-              Change Requester
+            <span className="small">
+              {user.name}{" "}
+              <span className="badge bg-white text-dark">{ROLE_LABELS[user.role] ?? user.role}</span>
+            </span>
+            <button className="btn btn-sm btn-outline-light" onClick={handleLogout}>
+              Logout
             </button>
           </div>
         )}
