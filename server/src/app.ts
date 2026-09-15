@@ -2,16 +2,30 @@ import { createTicketWithRetry } from "./ticketNumber.js";
 import { validateTicketInput } from "./validation.js";
 import express, { Request, Response } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { getPrisma } from "./prisma.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import { authRouter } from "./authRoutes.js";
 
 export const app = express();
 
-app.use(cors());
+// A credentialed (cookie-bearing) cross-origin request needs an explicit
+// origin, not the wildcard cors() default — the browser silently refuses
+// to set/send the session cookie against "Access-Control-Allow-Origin: *".
+// See specification.md §11 / api-spec.md.
+app.use(
+  cors({
+    origin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
+
+app.use("/api/auth", authRouter);
 
 app.get("/api/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok", service: "TokTickIT API" });
@@ -32,8 +46,8 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
 
 app.get("/api/requesters", async (_req: Request, res: Response) => {
   try {
-    const requesters = await getPrisma().requesterUser.findMany({
-      where: { isActive: true },
+    const requesters = await getPrisma().user.findMany({
+      where: { isActive: true, role: "REQUESTER" },
       orderBy: { id: "asc" },
       select: { id: true, name: true, email: true },
     });
@@ -67,7 +81,7 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
   }
 
   try {
-    const requester = await getPrisma().requesterUser.findUnique({
+    const requester = await getPrisma().user.findUnique({
       where: { id: requesterId },
     });
     if (!requester || !requester.isActive) {
@@ -131,7 +145,7 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
   }
 
   try {
-    const requester = await getPrisma().requesterUser.findUnique({ where: { id: requesterId } });
+    const requester = await getPrisma().user.findUnique({ where: { id: requesterId } });
     if (!requester || !requester.isActive) {
       return res.status(400).json({ error: "A valid, active requester is required" });
     }

@@ -29,8 +29,8 @@ async function createTicketFor(requesterId: number, summary: string) {
 
 beforeAll(async () => {
   const prisma = getPrisma();
-  const requesters = await prisma.requesterUser.findMany({
-    where: { isActive: true },
+  const requesters = await prisma.user.findMany({
+    where: { isActive: true, role: "REQUESTER" },
     orderBy: { id: "asc" },
     take: 2,
   });
