@@ -11,6 +11,7 @@ import fs from "fs";
 import crypto from "crypto";
 import { authRouter } from "./authRoutes.js";
 import { requireAuth, requirePasswordChangeComplete, requireRole } from "./authMiddleware.js";
+import { isValidTransition, validNextStatuses, ALL_STATUSES } from "./statusTransitions.js";
 
 // Lab 2's Requester ticket/attachment endpoints, now gated by an
 // authenticated Requester session (BR-09) instead of a client-supplied
@@ -618,6 +619,260 @@ app.get("/api/staff/tickets", ...requireStaffSession, async (req: Request, res: 
   } catch (err) {
     console.error("Failed to fetch staff ticket queue:", err);
     res.status(500).json({ error: "Unable to load the ticket queue" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Lab 3 Issue #33 — IT Staff Ticket operations (api-spec.md §11-16)
+// ---------------------------------------------------------------------------
+
+// Not in the original api-spec.md — needed once the UI actually renders
+// the Ticket Owner dropdown (ui-spec.md §7): a small, staff-only list of
+// who a Ticket can be assigned to.
+app.get("/api/staff/assignable-users", ...requireStaffSession, async (_req: Request, res: Response) => {
+  try {
+    const users = await getPrisma().user.findMany({
+      where: { isActive: true, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    });
+    res.status(200).json(users);
+  } catch (err) {
+    console.error("Failed to fetch assignable users:", err);
+    res.status(500).json({ error: "Unable to load assignable users" });
+  }
+});
+
+app.get("/api/staff/tickets/:id", ...requireStaffSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  if (Number.isNaN(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+
+  try {
+    const ticket = await getPrisma().ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        category: true,
+        relatedSystem: true,
+        requester: { select: { id: true, name: true, email: true } },
+        ticketOwner: { select: { id: true, name: true } },
+        attachments: { orderBy: { uploadedAt: "asc" } },
+        internalNotes: {
+          orderBy: { createdAt: "asc" },
+          include: { author: { select: { name: true, role: true } } },
+        },
+      },
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    res.status(200).json({
+      ...ticket,
+      internalNotes: ticket.internalNotes.map((n) => ({
+        id: n.id,
+        ticketId,
+        authorId: n.authorId,
+        authorName: n.author.name,
+        authorRole: n.author.role,
+        content: n.content,
+        createdAt: n.createdAt,
+      })),
+      validNextStatuses: validNextStatuses(ticket.currentStatus),
+    });
+  } catch (err) {
+    console.error("Failed to fetch staff ticket detail:", err);
+    res.status(500).json({ error: "Unable to load ticket" });
+  }
+});
+
+// BR-14/BR-15: claim (unassigned -> me) and reassign (owned -> a different
+// active IT Staff/Administrator) share one endpoint — both just set
+// ticketOwnerId, independent of Current Status (see the note in
+// specification.md §5.5).
+app.patch("/api/staff/tickets/:id/owner", ...requireStaffSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  if (Number.isNaN(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+
+  try {
+    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    const rawOwnerId = req.body?.ticketOwnerId;
+    if (rawOwnerId === null) {
+      const updated = await getPrisma().ticket.update({
+        where: { id: ticketId },
+        data: { ticketOwnerId: null },
+      });
+      return res.status(200).json({ ticketOwner: null, currentStatus: updated.currentStatus });
+    }
+
+    const ticketOwnerId = Number(rawOwnerId);
+    if (!Number.isInteger(ticketOwnerId)) {
+      return res.status(400).json({ error: "ticketOwnerId must be a number or null" });
+    }
+
+    const targetUser = await getPrisma().user.findUnique({ where: { id: ticketOwnerId } });
+    if (!targetUser || !targetUser.isActive || (targetUser.role !== "IT_STAFF" && targetUser.role !== "ADMINISTRATOR")) {
+      return res.status(400).json({ error: "Ticket Owner must be an active IT Staff or Administrator user" });
+    }
+
+    await getPrisma().ticket.update({ where: { id: ticketId }, data: { ticketOwnerId } });
+    res.status(200).json({ ticketOwner: { id: targetUser.id, name: targetUser.name } });
+  } catch (err) {
+    console.error("Failed to update ticket owner:", err);
+    res.status(500).json({ error: "Unable to update ticket owner" });
+  }
+});
+
+app.patch("/api/staff/tickets/:id/priority", ...requireStaffSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  if (Number.isNaN(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+  if (!KNOWN_PRIORITY_VALUES.includes(String(req.body?.itPriority))) {
+    return res.status(400).json({ error: "itPriority must be LOW, MEDIUM, or HIGH" });
+  }
+
+  try {
+    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    const updated = await getPrisma().ticket.update({
+      where: { id: ticketId },
+      data: { itPriority: req.body.itPriority },
+    });
+    res.status(200).json({ itPriority: updated.itPriority });
+  } catch (err) {
+    console.error("Failed to update IT Priority:", err);
+    res.status(500).json({ error: "Unable to update IT Priority" });
+  }
+});
+
+app.patch("/api/staff/tickets/:id/status", ...requireStaffSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  const targetStatus = String(req.body?.currentStatus ?? "");
+  if (Number.isNaN(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+  if (!ALL_STATUSES.includes(targetStatus)) {
+    return res.status(400).json({ error: "Invalid status value" });
+  }
+
+  try {
+    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    if (!isValidTransition(ticket.currentStatus, targetStatus)) {
+      return res.status(400).json({
+        error: `Cannot transition from ${ticket.currentStatus} to ${targetStatus}`,
+        validNextStatuses: validNextStatuses(ticket.currentStatus),
+      });
+    }
+    // BR-19: RESOLVED requires an assigned Ticket Owner.
+    if (targetStatus === "RESOLVED" && !ticket.ticketOwnerId) {
+      return res.status(409).json({ error: "An unassigned Ticket cannot be resolved" });
+    }
+
+    const updated = await getPrisma().ticket.update({
+      where: { id: ticketId },
+      data: {
+        currentStatus: targetStatus as Prisma.TicketUpdateInput["currentStatus"],
+        // BR-22: reopening clears a stale Requester confirmation.
+        ...(targetStatus === "REOPENED"
+          ? { requesterConfirmedResolved: false, requesterConfirmedResolvedAt: null }
+          : {}),
+      },
+    });
+
+    res.status(200).json({
+      currentStatus: updated.currentStatus,
+      validNextStatuses: validNextStatuses(updated.currentStatus),
+    });
+  } catch (err) {
+    console.error("Failed to update ticket status:", err);
+    res.status(500).json({ error: "Unable to update ticket status" });
+  }
+});
+
+app.post("/api/staff/tickets/:id/notes", ...requireStaffSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+
+  if (Number.isNaN(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+  if (!content || content.length > 2000) {
+    return res.status(400).json({ error: "Note content is required (1-2000 characters)" });
+  }
+
+  try {
+    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    const note = await getPrisma().internalNote.create({
+      data: { ticketId, authorId: req.user!.id, content },
+    });
+
+    res.status(201).json({
+      id: note.id,
+      ticketId,
+      authorId: req.user!.id,
+      authorName: req.user!.name,
+      authorRole: req.user!.role,
+      content: note.content,
+      createdAt: note.createdAt,
+    });
+  } catch (err) {
+    console.error("Failed to post internal note:", err);
+    res.status(500).json({ error: "Unable to post internal note" });
+  }
+});
+
+app.get("/api/staff/tickets/:id/notes", ...requireStaffSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  if (Number.isNaN(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+
+  try {
+    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    const notes = await getPrisma().internalNote.findMany({
+      where: { ticketId },
+      orderBy: { createdAt: "asc" },
+      include: { author: { select: { name: true, role: true } } },
+    });
+
+    res.status(200).json(
+      notes.map((n) => ({
+        id: n.id,
+        ticketId,
+        authorId: n.authorId,
+        authorName: n.author.name,
+        authorRole: n.author.role,
+        content: n.content,
+        createdAt: n.createdAt,
+      }))
+    );
+  } catch (err) {
+    console.error("Failed to fetch internal notes:", err);
+    res.status(500).json({ error: "Unable to load internal notes" });
   }
 });
 

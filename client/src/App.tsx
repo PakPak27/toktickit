@@ -8,6 +8,7 @@ import CreateTicket from "./pages/CreateTicket.js";
 import MyTickets from "./pages/MyTickets.js";
 import TicketDetail from "./pages/TicketDetail.js";
 import StaffTicketQueue from "./pages/StaffTicketQueue.js";
+import StaffTicketDetail from "./pages/StaffTicketDetail.js";
 import Login from "./pages/Login.js";
 import ChangePassword from "./pages/ChangePassword.js";
 
@@ -78,6 +79,18 @@ export default function App() {
                 <RequireRole roles={["IT_STAFF", "ADMINISTRATOR"]}>
                   <AppShell>
                     <StaffTicketQueue />
+                  </AppShell>
+                </RequireRole>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/staff/tickets/:id"
+            element={
+              <RequireAuth>
+                <RequireRole roles={["IT_STAFF", "ADMINISTRATOR"]}>
+                  <AppShell>
+                    <StaffTicketDetail />
                   </AppShell>
                 </RequireRole>
               </RequireAuth>
