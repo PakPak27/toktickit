@@ -4,6 +4,7 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { getPrisma } from "./prisma.js";
+import type { Prisma } from "@prisma/client";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -19,6 +20,12 @@ const requireRequesterSession = [requireAuth, requirePasswordChangeComplete, req
 // Staff/Administrator) — only authentication + the password gate apply here;
 // per-request ownership is checked inside each handler.
 const requireAuthenticatedSession = [requireAuth, requirePasswordChangeComplete];
+// Issue #32: the Ticket Queue and later staff Ticket operations (#33).
+const requireStaffSession = [
+  requireAuth,
+  requirePasswordChangeComplete,
+  requireRole("IT_STAFF", "ADMINISTRATOR"),
+];
 
 export const app = express();
 
@@ -510,6 +517,101 @@ app.delete("/api/attachments/:id", ...requireRequesterSession, async (req: Reque
   } catch (err) {
     console.error("Failed to remove attachment:", err);
     res.status(500).json({ error: "Unable to remove attachment" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Lab 3 Issue #32 — IT Staff Ticket Queue (api-spec.md §10)
+// ---------------------------------------------------------------------------
+const STAFF_SORTABLE_FIELDS = ["status", "createdAt", "itPriority", "updatedAt"] as const;
+type StaffSortField = (typeof STAFF_SORTABLE_FIELDS)[number];
+// currentStatus only has NEW until Issue #33 introduces the full workflow
+// enum — filtering by any other value is treated the same as "no filter"
+// (BR-14-style silent fallback), never a Prisma runtime error.
+const KNOWN_STATUS_VALUES: string[] = ["NEW"];
+
+app.get("/api/staff/tickets", ...requireStaffSession, async (req: Request, res: Response) => {
+  try {
+    const sortParam = String(req.query.sort ?? "status");
+    const sort: StaffSortField = (STAFF_SORTABLE_FIELDS as readonly string[]).includes(sortParam)
+      ? (sortParam as StaffSortField)
+      : "status";
+
+    const orderParam = String(req.query.order ?? "asc");
+    const order: Prisma.SortOrder = orderParam === "desc" ? "desc" : "asc";
+
+    const pageSizeParam = Number(req.query.pageSize);
+    const pageSize = ALLOWED_PAGE_SIZES.includes(pageSizeParam) ? pageSizeParam : 10;
+
+    const pageParam = Number(req.query.page);
+    const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
+
+    const where: Prisma.TicketWhereInput = {};
+
+    if (req.query.search) {
+      const search = String(req.query.search);
+      where.OR = [
+        { ticketNumber: { contains: search, mode: "insensitive" } },
+        { summary: { contains: search, mode: "insensitive" } },
+      ];
+    }
+    if (req.query.categoryId) {
+      where.categoryId = Number(req.query.categoryId);
+    }
+    if (req.query.itPriority) {
+      where.itPriority = req.query.itPriority as Prisma.TicketWhereInput["itPriority"];
+    }
+    if (req.query.currentStatus && KNOWN_STATUS_VALUES.includes(String(req.query.currentStatus))) {
+      where.currentStatus = req.query.currentStatus as Prisma.TicketWhereInput["currentStatus"];
+    }
+    const ownerParam = String(req.query.owner ?? "all");
+    if (ownerParam === "unassigned") {
+      where.ticketOwnerId = null;
+    } else if (ownerParam === "mine") {
+      where.ticketOwnerId = req.user!.id;
+    }
+
+    // Prisma orders enum columns by their declaration order, not text — the
+    // matrix in specification.md §5.5 hasn't landed yet (Issue #33), but
+    // status/createdAt is a fine default proxy for "open work first" today,
+    // since NEW is currently the only status every seeded/created ticket has.
+    const orderBy: Prisma.TicketOrderByWithRelationInput[] =
+      sort === "status" ? [{ currentStatus: order }, { createdAt: "asc" }] : [{ [sort]: order }];
+
+    const [data, totalItems] = await Promise.all([
+      getPrisma().ticket.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { ticketOwner: { select: { id: true, name: true } } },
+      }),
+      getPrisma().ticket.count({ where }),
+    ]);
+
+    res.status(200).json({
+      data: data.map((t) => ({
+        id: t.id,
+        ticketNumber: t.ticketNumber,
+        summary: t.summary,
+        categoryId: t.categoryId,
+        requestedPriority: t.requestedPriority,
+        itPriority: t.itPriority,
+        currentStatus: t.currentStatus,
+        ticketOwner: t.ticketOwner ? { id: t.ticketOwner.id, name: t.ticketOwner.name } : null,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      })),
+      pagination: {
+        page,
+        pageSize,
+        totalItems,
+        totalPages: Math.ceil(totalItems / pageSize) || 1,
+      },
+    });
+  } catch (err) {
+    console.error("Failed to fetch staff ticket queue:", err);
+    res.status(500).json({ error: "Unable to load the ticket queue" });
   }
 });
 

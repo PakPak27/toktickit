@@ -1,12 +1,23 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext.js";
+import { useAuth } from "./context/AuthContext.js";
 import RequireAuth from "./components/RequireAuth.js";
+import RequireRole from "./components/RequireRole.js";
 import AppShell from "./components/AppShell.js";
 import CreateTicket from "./pages/CreateTicket.js";
 import MyTickets from "./pages/MyTickets.js";
 import TicketDetail from "./pages/TicketDetail.js";
+import StaffTicketQueue from "./pages/StaffTicketQueue.js";
 import Login from "./pages/Login.js";
 import ChangePassword from "./pages/ChangePassword.js";
+
+// Every role has a different "home" screen — routed once here instead of
+// hard-coding "/tickets" everywhere a redirect target is needed.
+function HomeRedirect() {
+  const { user } = useAuth();
+  const target = user?.role === "REQUESTER" ? "/tickets" : "/staff/queue";
+  return <Navigate to={target} replace />;
+}
 
 export default function App() {
   return (
@@ -20,7 +31,7 @@ export default function App() {
             path="/"
             element={
               <RequireAuth>
-                <Navigate to="/tickets" replace />
+                <HomeRedirect />
               </RequireAuth>
             }
           />
@@ -28,9 +39,11 @@ export default function App() {
             path="/tickets"
             element={
               <RequireAuth>
-                <AppShell>
-                  <MyTickets />
-                </AppShell>
+                <RequireRole roles={["REQUESTER"]}>
+                  <AppShell>
+                    <MyTickets />
+                  </AppShell>
+                </RequireRole>
               </RequireAuth>
             }
           />
@@ -38,9 +51,11 @@ export default function App() {
             path="/tickets/new"
             element={
               <RequireAuth>
-                <AppShell>
-                  <CreateTicket />
-                </AppShell>
+                <RequireRole roles={["REQUESTER"]}>
+                  <AppShell>
+                    <CreateTicket />
+                  </AppShell>
+                </RequireRole>
               </RequireAuth>
             }
           />
@@ -48,9 +63,23 @@ export default function App() {
             path="/tickets/:id"
             element={
               <RequireAuth>
-                <AppShell>
-                  <TicketDetail />
-                </AppShell>
+                <RequireRole roles={["REQUESTER"]}>
+                  <AppShell>
+                    <TicketDetail />
+                  </AppShell>
+                </RequireRole>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/staff/queue"
+            element={
+              <RequireAuth>
+                <RequireRole roles={["IT_STAFF", "ADMINISTRATOR"]}>
+                  <AppShell>
+                    <StaffTicketQueue />
+                  </AppShell>
+                </RequireRole>
               </RequireAuth>
             }
           />

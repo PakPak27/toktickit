@@ -33,7 +33,7 @@ authorization (direct API calls bypassing the UI), migration/regression
 | API-15 | API | AC-12 | POST Internal Note as IT Staff, then GET /api/tickets/:id as the owning Requester | Note never appears in the Requester-facing response | `server/tests/lab-03/comments-notes.api.test.ts` | Pending (Issue #33 — Internal Notes don't exist yet) |
 | API-16 | API | BR-26 | POST comment with whitespace-only content | 400; nothing stored | `server/tests/lab-02/ticket-detail.api.test.ts` | Pass |
 | API-17 | API | AC-13 | POST resolved-confirmation as owning Requester | requesterConfirmedResolved true; currentStatus unchanged; a non-owning Requester is rejected | `server/tests/lab-02/ticket-detail.api.test.ts` | Pass — the "then GET ticket as IT Staff" half is re-verified once Issue #33 adds Staff Ticket Detail |
-| API-18 | API | AC-14 | GET /api/staff/tickets with search/filter/sort/page across 40+ seeded tickets | Returned subset/order/pagination match query params | `server/tests/lab-03/staff-queue.api.test.ts` | Pending |
+| API-18 | API | AC-14 | GET /api/staff/tickets with search/filter/sort/page, and owner=all/unassigned/mine | Returned subset/order/pagination match query params; 403 for a Requester | `server/tests/lab-03/staff-queue.api.test.ts` | Pass — tested at 3 tickets rather than 40+ (no ticketOwnerId writer exists until Issue #33, so every ticket is unassigned; volume isn't the risk being tested here) |
 | API-19 | API | AC-15 | POST /api/admin/users with an existing email | 409; field=email; no duplicate row | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
 | API-20 | API | AC-16 | POST reset-password, then login with the new password | mustChangePassword true on the next /api/auth/me | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
 | API-21 | API | AC-17 | PATCH self isActive=false as the sole active Administrator; PATCH last Administrator's role away | Both return 409 | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
@@ -45,7 +45,7 @@ authorization (direct API calls bypassing the UI), migration/regression
 | UI-04 | UI | AC-11 | Add Public Comment in Requester Ticket Detail | New comment appears in the thread immediately | `client/tests/lab-02/TicketDetail.test.tsx` | Pass |
 | UI-05 | UI | Sec. 7 | IT Staff Ticket Detail Public Comments vs Internal Notes tabs | Distinct styling/aria-label; switching tabs shows the correct content set | `client/src/.../StaffTicketDetail.test.tsx` | Pending |
 | UI-06 | UI | AC-09 | Status dropdown in IT Staff Ticket Detail for a NEW ticket | Only matrix-valid next statuses appear as options | `client/src/.../StaffTicketDetail.test.tsx` | Pending |
-| UI-07 | UI | Sec. 6 | Ticket Queue empty vs no-results states | Distinct copy/UI for 0-system-wide-tickets vs 0-matches-for-filter | `client/src/.../StaffTicketQueue.test.tsx` | Pending |
+| UI-07 | UI | Sec. 6 | Ticket Queue empty vs no-results states | Distinct copy/UI for 0-system-wide-tickets vs 0-matches-for-filter | `client/tests/lab-03/StaffTicketQueue.test.tsx` | Pass |
 | UI-08 | UI | AC-15/AC-17 | User Management create-duplicate-email and self-deactivate attempts | Inline field error / inline toggle-revert message shown, no request loop | `client/src/.../UserManagement.test.tsx` | Pending |
 | UI-09 | UI | AC-13 | "Problem Appears Resolved" action | Button replaced by a confirmation badge once clicked; button never reappears | `client/tests/lab-02/TicketDetail.test.tsx` | Pass |
 | STYLE-01 | UI Style | Sec. 1 | Role and status badge color classes | Correct class per role/status value; text label always present | `client/src/.../badges.test.tsx` | Pending |
@@ -73,11 +73,11 @@ authorization (direct API calls bypassing the UI), migration/regression
 | AC-11 | API-14, UI-04, E2E-03 |
 | AC-12 | API-15, E2E-03 |
 | AC-13 | API-17, UI-09 |
-| AC-14 | API-18 |
+| AC-14 | API-18, UI-07 |
 | AC-15 | API-19, UI-08, E2E-04 |
 | AC-16 | API-20, E2E-04 |
 | AC-17 | API-21, UI-08, E2E-04 |
-| AC-18 | API-08 |
+| AC-18 | API-08 (Pending, Issue #33/34), API-18 (staff-queue partial) |
 | AC-19 | API-04, E2E-02 |
 | AC-20 | REGR-01, E2E-05 |
 
