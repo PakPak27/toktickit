@@ -18,11 +18,35 @@ const ROLE_LABELS: Record<Role, string> = {
   ADMINISTRATOR: "Administrator",
 };
 
+// crypto.getRandomValues, not Math.random — this generates real (if
+// temporary) account passwords, so even a suggested value worth editing
+// should come from a CSPRNG rather than a predictable PRNG.
+function randomIndex(max: number): number {
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  return buf[0] % max;
+}
+
 function generatePassword(): string {
   // Meets BR-07: 8+ chars, upper/lower/digit/special.
+  const lower = "abcdefghijkmnpqrstuvwxyz";
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const digits = "23456789";
   const specials = "!@#$%";
-  const rand = Math.random().toString(36).slice(2, 8);
-  return `Aa1${specials[Math.floor(Math.random() * specials.length)]}${rand}`;
+  const all = lower + upper + digits + specials;
+
+  const chars = [
+    lower[randomIndex(lower.length)],
+    upper[randomIndex(upper.length)],
+    digits[randomIndex(digits.length)],
+    specials[randomIndex(specials.length)],
+    ...Array.from({ length: 6 }, () => all[randomIndex(all.length)]),
+  ];
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomIndex(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join("");
 }
 
 interface FormState {
