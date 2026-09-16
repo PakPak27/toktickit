@@ -11,9 +11,11 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Already signed in — don't show the login form again.
+  // Already signed in — don't show the login form again. Not "/tickets" —
+  // that's Requester-only and 403s IT Staff/Administrator; "/" lets
+  // HomeRedirect route to the signed-in user's own home instead.
   if (user) {
-    return <Navigate to={user.mustChangePassword ? "/change-password" : "/tickets"} replace />;
+    return <Navigate to={user.mustChangePassword ? "/change-password" : "/"} replace />;
   }
 
   const emailError = touched && !email.trim() ? "Email is required" : null;

@@ -66,7 +66,10 @@ npx playwright install chromium
 
 **Backend** (from \`server/\`): \`npm run test\`
 **Frontend** (from \`client/\`): \`npm run test\`
-**E2E / visual** (from repo root, with both servers running): \`npx playwright test e2e/lab-02\`
+**E2E / visual** (from repo root, with both servers running): \`npx playwright test e2e/lab-03\`
+(\`e2e/lab-02\` was removed in Lab 3 — it depended on the Development
+Requester selector, which no longer exists; its coverage is superseded by
+\`e2e/lab-03/requester-regression.spec.ts\`.)
 
 ## Features
 

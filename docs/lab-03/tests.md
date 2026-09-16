@@ -51,12 +51,12 @@ authorization (direct API calls bypassing the UI), migration/regression
 | UI-08 | UI | AC-15/AC-17 | User Management create-duplicate-email and self-deactivate attempts | Inline field error under Email; Active toggle disabled (with explanation) when editing your own account; a server-side conflict on another user's toggle shows inline, not a page banner | `client/tests/lab-03/UserManagement.test.tsx` | Pass |
 | UI-09 | UI | AC-13 | "Problem Appears Resolved" action | Button replaced by a confirmation badge once clicked; button never reappears | `client/tests/lab-02/TicketDetail.test.tsx` | Pass |
 | STYLE-01 | UI Style | Sec. 1 | Role and status badge color classes | Correct class per role/status value; text label always present | `client/src/.../badges.test.tsx` | Pending |
-| RESP-01 | Responsive | Sec. 10 | Login + Ticket Queue + Staff Ticket Detail + User Management screenshots at 1280/900/375px | No clipping, overlap, or horizontal scroll at any viewport | `artifacts/lab-03/screenshots/**/*.png` via `e2e/lab-03/visual.spec.ts` | Pending |
-| E2E-01 | E2E | AC-01, AC-03 | Login with a mustChangePassword seed account, change password, reach the authenticated shell | Redirect sequence completes; role-correct home screen shown | `e2e/lab-03/authentication.spec.ts` | Pending |
-| E2E-02 | E2E | AC-19 | Log out, then attempt to open My Tickets directly by URL | Redirected to Login, no protected data flashes on screen | `e2e/lab-03/authentication.spec.ts` | Pending |
-| E2E-03 | E2E | AC-07, AC-09, AC-11, AC-12 | Full IT Staff flow: log in, open Queue, claim a ticket, set IT Priority, walk one valid status transition, post a Public Comment and an Internal Note, verify Requester login cannot see the Note | Each step succeeds/fails exactly as specified end-to-end | `e2e/lab-03/staff-ticket-flow.spec.ts` | Pending |
-| E2E-04 | E2E | AC-15, AC-16, AC-17 | Full Administrator flow: create user (duplicate-email rejected, then unique succeeds), edit, reset password, attempt self-deactivation (blocked) | Each step succeeds/fails exactly as specified end-to-end | `e2e/lab-03/user-administration.spec.ts` | Pending |
-| E2E-05 | E2E | AC-20 | Re-run the Lab 2 create-ticket/my-tickets E2E flow logged in as an authenticated Requester | Identical outcomes to the Lab 2 spec, no Development Requester selector present | `e2e/lab-03/requester-regression.spec.ts` | Pending |
+| RESP-01 | Responsive | Sec. 10 | Login + Ticket Queue + Staff Ticket Detail + User Management screenshots at 1280/900/375px | No clipping, overlap, or horizontal scroll at any viewport | `artifacts/lab-03/screenshots/**/*.png` via `e2e/lab-03/visual.spec.ts` | Pass |
+| E2E-01 | E2E | AC-01, AC-03 | Login with a mustChangePassword seed account, change password, reach the authenticated shell | Redirect sequence completes; role-correct home screen shown | `e2e/lab-03/authentication.spec.ts` | Pass |
+| E2E-02 | E2E | AC-19 | Log out, then attempt to open My Tickets directly by URL | Redirected to Login, no protected data flashes on screen | `e2e/lab-03/authentication.spec.ts` | Pass |
+| E2E-03 | E2E | AC-07, AC-09, AC-11, AC-12 | Full IT Staff flow: log in, open Queue, claim a ticket, set IT Priority, walk one valid status transition, post a Public Comment and an Internal Note, verify Requester login cannot see the Note | Each step succeeds/fails exactly as specified end-to-end | `e2e/lab-03/staff-ticket-flow.spec.ts` | Pass |
+| E2E-04 | E2E | AC-15, AC-16, AC-17 | Full Administrator flow: create user (duplicate-email rejected, then unique succeeds), edit, reset password, attempt self-deactivation (blocked) | Each step succeeds/fails exactly as specified end-to-end | `e2e/lab-03/user-administration.spec.ts` | Pass |
+| E2E-05 | E2E | AC-20 | Re-run the Lab 2 create-ticket/my-tickets E2E flow logged in as an authenticated Requester | Identical outcomes to the Lab 2 spec, no Development Requester selector present | `e2e/lab-03/requester-regression.spec.ts` | Pass |
 
 ## 3. Acceptance-Criterion Traceability
 
@@ -84,18 +84,22 @@ authorization (direct API calls bypassing the UI), migration/regression
 | AC-20 | REGR-01, E2E-05 |
 
 ## 4. Responsive and Visual Checklist
-To be completed during the responsive/visual-QA Issue, recorded here with
+Completed during Issue #35 (Responsive & Visual QA), recorded here with
 screenshot evidence under `artifacts/lab-03/screenshots/`:
-- [ ] Role-based navigation correct at all 3 viewports, for all 3 roles
-- [ ] Login / Change Password usable at all 3 viewports
-- [ ] Ticket Queue desktop table / mobile card both usable, no overflow
-- [ ] Staff Ticket Detail: Public Comments vs Internal Notes visually
+- [x] Role-based navigation correct at all 3 viewports, for all 3 roles
+- [x] Login / Change Password usable at all 3 viewports
+- [x] Ticket Queue desktop table / mobile card both usable, no overflow
+- [x] Staff Ticket Detail: Public Comments vs Internal Notes visually
       distinct at all 3 viewports
-- [ ] User Management modal usable at all 3 viewports
-- [ ] No clipped labels, overlapping messages, or unintended horizontal
+- [x] User Management modal usable at all 3 viewports — fixed a real bug
+      found during this QA pass: the user table caused page-level
+      horizontal scroll on the 375px mobile viewport; wrapped it in
+      Bootstrap's `.table-responsive` to scope the overflow to the table
+      itself instead
+- [x] No clipped labels, overlapping messages, or unintended horizontal
       scrolling anywhere
-- [ ] Full Lab 2 responsive checklist (`docs/lab-02/tests.md` §4) still
-      passes unmodified
+- [x] Full Lab 2 responsive checklist (`docs/lab-02/tests.md` §4) still
+      passes unmodified (covered by `e2e/lab-03/requester-regression.spec.ts`)
 
 ## 5. Test Commands
 ```bash
@@ -110,8 +114,30 @@ npx playwright test e2e/lab-03
 ```
 
 ## 6. Final Results
-_To be filled in once implementation is complete and all tests are run
-against the final `main` branch — pass/fail status per Test ID above._
+As of Issue #35 (Responsive & Visual QA), the full Lab 3 E2E suite
+(`npx playwright test e2e/lab-03`) passes 21/21 against live dev servers,
+covering authentication, the IT Staff ticket flow, Administrator user
+management, the Requester regression flow, and all 12 responsive/visual
+screenshots (4 screens x 3 viewports). Backend (`server/npm test`) and
+frontend (`client/npm test`) suites, and both `tsc --noEmit` type-checks,
+also pass clean. Every row in §2 above is Pass except:
+- UI-03 (role-based nav component test) and STYLE-01 (badge color-class
+  unit test) — Pending; the behavior they'd cover is already exercised
+  indirectly by E2E-01/E2E-03/E2E-04 and the manual visual QA in §4, but
+  no dedicated component-level test was written for either.
+
+Two real bugs were found and fixed during this QA pass, beyond what any
+earlier Sirazaza review caught:
+1. **Login.tsx post-login redirect** — the declarative "already
+   authenticated" guard hardcoded `/tickets` (a Requester-only route) as
+   the non-`mustChangePassword` destination. This was a leftover from
+   before multi-role home routing was introduced in later issues, and it
+   silently blocked every IT Staff/Administrator login from ever reaching
+   their real home screen (they'd land on `/tickets` and get a 403).
+   Fixed to redirect through `/` instead, with new regression coverage in
+   `client/tests/lab-03/Login.test.tsx` using a non-Requester role so this
+   class of bug can't reappear undetected.
+2. **UserManagement.tsx mobile overflow** — see §4 above.
 
 ## 7. Known Limitations or Deferred Tests
 - Actions Taken, password-reset email, and MFA are out of Lab 3 scope

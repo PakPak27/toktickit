@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.js";
 
 interface Rule {
@@ -15,19 +15,32 @@ const RULES: Rule[] = [
 ];
 
 export default function ChangePassword() {
-  const { user, changePassword } = useAuth();
-  const navigate = useNavigate();
+  const { user, loading, changePassword } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // This route isn't wrapped in RequireAuth, so a direct load/refresh here
+  // hits AuthProvider's initial loading:true/user:null state — without this
+  // check, "if (!user)" would fire on that transient state and redirect to
+  // /login before fetchCurrentUser even resolves, stranding a genuinely
+  // authenticated mustChangePassword user away from this screen.
+  if (loading) {
+    return <div className="p-4">Loading…</div>;
+  }
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+  // Not "/tickets" — that's Requester-only. Route through "/" so
+  // HomeRedirect sends IT Staff/Administrator to their own home instead of
+  // a "forbidden" page right after their first login. This is the single
+  // source of truth for the post-change destination — handleSubmit below
+  // never navigates itself, so there's no race between an imperative call
+  // and this guard re-evaluating once mustChangePassword flips to false.
   if (!user.mustChangePassword) {
-    return <Navigate to="/tickets" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const rulesPass = RULES.every((rule) => rule.test(newPassword));
@@ -42,7 +55,6 @@ export default function ChangePassword() {
     setError(null);
     try {
       await changePassword(currentPassword, newPassword);
-      navigate("/tickets");
     } catch (err) {
       setError((err as Error).message);
       setCurrentPassword("");

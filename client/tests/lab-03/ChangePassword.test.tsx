@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 import ChangePassword from "../../src/pages/ChangePassword.js";
 import { AuthProvider } from "../../src/context/AuthContext.js";
 import * as authApi from "../../src/api/auth.js";
@@ -10,6 +10,28 @@ function renderPage() {
     <MemoryRouter initialEntries={["/change-password"]}>
       <AuthProvider>
         <ChangePassword />
+      </AuthProvider>
+    </MemoryRouter>
+  );
+}
+
+// Renders ChangePassword alongside real role-specific home routes, so the
+// post-change redirect target can actually be observed (not just resolved).
+function renderWithDestinations() {
+  return render(
+    <MemoryRouter initialEntries={["/change-password"]}>
+      <AuthProvider>
+        <Routes>
+          {/* The AuthProvider starts with user: null while loading resolves,
+              so ChangePassword's own "if (!user)" guard briefly redirects
+              here before the mocked current user arrives — a real route is
+              needed so that transient navigation doesn't strand the test
+              on an unmatched path. */}
+          <Route path="/login" element={<div>Login Screen</div>} />
+          <Route path="/change-password" element={<ChangePassword />} />
+          <Route path="/" element={<div>Home Redirect Landed</div>} />
+          <Route path="/tickets" element={<div>My Tickets Screen</div>} />
+        </Routes>
       </AuthProvider>
     </MemoryRouter>
   );
@@ -68,5 +90,25 @@ describe("ChangePassword (BR-07, AC-03)", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Current password is incorrect");
     expect((screen.getByLabelText(/current \(temporary\) password/i) as HTMLInputElement).value).toBe("");
+  });
+
+  // Regression test: navigate("/tickets") after a successful change is
+  // Requester-only and 403s any other role. Route through "/" instead so
+  // HomeRedirect sends IT Staff/Administrator to their own home.
+  it("routes an IT Staff user to their own home, not the Requester-only My Tickets screen (AC-03)", async () => {
+    vi.spyOn(authApi, "fetchCurrentUser").mockResolvedValue({
+      id: 5, name: "Michael Brown", email: "michael.brown@toktickit.com", role: "IT_STAFF", mustChangePassword: true,
+    });
+    vi.spyOn(authApi, "changePassword").mockResolvedValue(undefined);
+    renderWithDestinations();
+
+    await waitFor(() => screen.getByLabelText(/current \(temporary\) password/i));
+    fireEvent.change(screen.getByLabelText(/current \(temporary\) password/i), { target: { value: "ChangeMe123!" } });
+    fireEvent.change(screen.getByLabelText(/^new password$/i), { target: { value: "N3wSecret!Pass" } });
+    fireEvent.change(screen.getByLabelText(/confirm new password/i), { target: { value: "N3wSecret!Pass" } });
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(await screen.findByText("Home Redirect Landed")).toBeInTheDocument();
+    expect(screen.queryByText("My Tickets Screen")).not.toBeInTheDocument();
   });
 });

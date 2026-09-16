@@ -226,7 +226,7 @@ export default function UserManagement() {
       )}
 
       {loadState === "success" && users.length > 0 && (
-        <div className="card border-0 shadow-sm">
+        <div className="card border-0 shadow-sm table-responsive">
           <table className="table mb-0">
             <thead>
               <tr>
