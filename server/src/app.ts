@@ -706,11 +706,11 @@ app.patch("/api/staff/tickets/:id/owner", ...requireStaffSession, async (req: Re
 
     const rawOwnerId = req.body?.ticketOwnerId;
     if (rawOwnerId === null) {
-      const updated = await getPrisma().ticket.update({
+      await getPrisma().ticket.update({
         where: { id: ticketId },
         data: { ticketOwnerId: null },
       });
-      return res.status(200).json({ ticketOwner: null, currentStatus: updated.currentStatus });
+      return res.status(200).json({ ticketOwner: null });
     }
 
     const ticketOwnerId = Number(rawOwnerId);
