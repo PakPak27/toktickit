@@ -12,6 +12,7 @@ import crypto from "crypto";
 import { authRouter } from "./authRoutes.js";
 import { requireAuth, requirePasswordChangeComplete, requireRole } from "./authMiddleware.js";
 import { isValidTransition, validNextStatuses, ALL_STATUSES } from "./statusTransitions.js";
+import { adminRouter } from "./adminRoutes.js";
 
 // Lab 2's Requester ticket/attachment endpoints, now gated by an
 // authenticated Requester session (BR-09) instead of a client-supplied
@@ -27,14 +28,17 @@ const requireStaffSession = [
   requirePasswordChangeComplete,
   requireRole("IT_STAFF", "ADMINISTRATOR"),
 ];
+// Issue #34: Administrator user management.
+const requireAdminSession = [requireAuth, requirePasswordChangeComplete, requireRole("ADMINISTRATOR")];
 
 // Shared query-param guards: an unrecognized value is ignored (falls back
 // to "no filter"), never passed through to Prisma — an invalid enum value
 // or a non-integer id would otherwise throw at the database layer (500)
 // instead of failing safely (BR-14-style behavior).
 const KNOWN_PRIORITY_VALUES: string[] = ["LOW", "MEDIUM", "HIGH"];
-// currentStatus only has NEW until Issue #33 introduces the full workflow enum.
-const KNOWN_STATUS_VALUES: string[] = ["NEW"];
+// Issue #33 introduced the full workflow enum — reuse the same list the
+// status-transition matrix validates against instead of a stale copy.
+const KNOWN_STATUS_VALUES: string[] = ALL_STATUSES;
 
 export const app = express();
 
@@ -52,6 +56,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use("/api/auth", authRouter);
+app.use("/api/admin", ...requireAdminSession, adminRouter);
 
 app.get("/api/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok", service: "TokTickIT API" });

@@ -9,6 +9,7 @@ import MyTickets from "./pages/MyTickets.js";
 import TicketDetail from "./pages/TicketDetail.js";
 import StaffTicketQueue from "./pages/StaffTicketQueue.js";
 import StaffTicketDetail from "./pages/StaffTicketDetail.js";
+import UserManagement from "./pages/UserManagement.js";
 import Login from "./pages/Login.js";
 import ChangePassword from "./pages/ChangePassword.js";
 
@@ -16,7 +17,8 @@ import ChangePassword from "./pages/ChangePassword.js";
 // hard-coding "/tickets" everywhere a redirect target is needed.
 function HomeRedirect() {
   const { user } = useAuth();
-  const target = user?.role === "REQUESTER" ? "/tickets" : "/staff/queue";
+  const target =
+    user?.role === "REQUESTER" ? "/tickets" : user?.role === "ADMINISTRATOR" ? "/admin/users" : "/staff/queue";
   return <Navigate to={target} replace />;
 }
 
@@ -91,6 +93,18 @@ export default function App() {
                 <RequireRole roles={["IT_STAFF", "ADMINISTRATOR"]}>
                   <AppShell>
                     <StaffTicketDetail />
+                  </AppShell>
+                </RequireRole>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <RequireAuth>
+                <RequireRole roles={["ADMINISTRATOR"]}>
+                  <AppShell>
+                    <UserManagement />
                   </AppShell>
                 </RequireRole>
               </RequireAuth>
