@@ -81,6 +81,16 @@ session. The `403` "not owned" case (AC-05) is unchanged in shape.
 **Response 409** — Ticket is already `CLOSED` or `CANCELLED` (BR-21).
 **Response 403** — not owned by the requesting user.
 
+## 9a. GET /api/staff/assignable-users — IT Staff, Administrator
+Not in the original endpoint list (§8) — added during Issue #33 once the
+Ticket Owner dropdown (ui-spec.md §7) needed a concrete data source: active
+IT Staff/Administrator users a Ticket can be assigned to.
+
+**Response 200**
+```json
+[{ "id": 5, "name": "Michael Brown" }, { "id": 9, "name": "Amanda Clark" }]
+```
+
 ## 10. GET /api/staff/tickets — IT Staff, Administrator
 Ticket Queue: search/filter/sort/paginate across **all** Tickets.
 
@@ -120,9 +130,12 @@ Invalid values fall back to defaults silently (same rule as Lab 2 BR-14).
 **Response 403** — caller is a Requester.
 
 ## 11. GET /api/staff/tickets/:id — IT Staff, Administrator
-Same header/attachment shape as `GET /api/tickets/:id`, plus `ticketOwner`,
-`requesterConfirmedResolved(At)`, and an `internalNotes` array (author name,
-role, content, createdAt — never returned to a Requester, AC-06/AC-12).
+Same header/attachment shape as `GET /api/tickets/:id`, plus `requester`
+(id/name/email), `ticketOwner`, `requesterConfirmedResolved(At)`, an
+`internalNotes` array (author name, role, content, createdAt — never
+returned to a Requester, AC-06/AC-12), and `validNextStatuses` (the same
+array §14's status-change response returns — a single source of truth so
+the frontend never re-implements the transition matrix).
 
 **Response 403** — caller is a Requester.
 **Response 404** — Ticket does not exist.

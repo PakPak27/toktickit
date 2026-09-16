@@ -83,10 +83,13 @@ first-login password change; role-based authorization (Requester / IT Staff
 selector has been fully removed — all Requester ticket/attachment functions
 now run on the authenticated session, with Public Comments and a
 "Problem Appears Resolved" action added to Ticket Detail. IT Staff/
-Administrator now have a Ticket Queue (search/filter/sort/pagination
-across all Requesters, owner filter). Remaining Lab 3 work (claim/
-reassign ownership, IT Priority, status workflow, Internal Notes,
-Administrator user management) tracked in the `TokTickIT-Lab3` GitHub
+Administrator have a Ticket Queue (search/filter/sort/pagination across
+all Requesters, owner filter) and a full Ticket Detail screen: claim/
+reassign ownership, IT Priority, the complete status workflow (NEW →
+OPEN/IN_PROGRESS → WAITING_FOR_REQUESTER/RESOLVED → CLOSED/REOPENED/
+CANCELLED per the transition matrix), and Internal Notes kept separate
+from Public Comments. Remaining Lab 3 work (Administrator user
+management) tracked in the `TokTickIT-Lab3` GitHub
 Project.
 
 ## Project Structure

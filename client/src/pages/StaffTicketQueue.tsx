@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { fetchStaffTickets, StaffTicketListItem } from "../api/staffQueue.js";
 import { fetchCategories, CategoryDto } from "../api/tickets.js";
 
@@ -204,7 +205,7 @@ export default function StaffTicketQueue() {
                 {tickets.map((t) => (
                   <tr key={t.id}>
                     <td>
-                      <div>{t.ticketNumber}</div>
+                      <div><Link to={`/staff/tickets/${t.id}`}>{t.ticketNumber}</Link></div>
                       <div className="small text-muted">{new Date(t.createdAt).toLocaleDateString()}</div>
                     </td>
                     <td>{t.summary}</td>
@@ -246,7 +247,11 @@ export default function StaffTicketQueue() {
           {/* Mobile cards */}
           <div className="d-md-none d-flex flex-column gap-2">
             {tickets.map((t) => (
-              <div key={t.id} className="card border-0 shadow-sm p-3">
+              <Link
+                key={t.id}
+                to={`/staff/tickets/${t.id}`}
+                className="card border-0 shadow-sm p-3 text-decoration-none text-dark"
+              >
                 <div className="d-flex justify-content-between mb-1">
                   <strong>{t.ticketNumber}</strong>
                   <span className="badge" style={{ background: "#EAF6EF", color: "#0B7A46" }}>{t.currentStatus}</span>
@@ -257,7 +262,7 @@ export default function StaffTicketQueue() {
                   <span>{t.ticketOwner ? t.ticketOwner.name : "Unassigned"}</span>
                   <span>{new Date(t.createdAt).toLocaleDateString()}</span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
 
