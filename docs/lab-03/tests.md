@@ -34,10 +34,10 @@ authorization (direct API calls bypassing the UI), migration/regression
 | API-16 | API | BR-26 | POST comment/note with whitespace-only content | 400; nothing stored | `server/tests/lab-02/ticket-detail.api.test.ts`, `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pass |
 | API-17 | API | AC-13 | POST resolved-confirmation as owning Requester, then GET ticket as IT Staff | requesterConfirmedResolved true; currentStatus unchanged; a non-owning Requester is rejected | `server/tests/lab-02/ticket-detail.api.test.ts`, `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pass |
 | API-18 | API | AC-14 | GET /api/staff/tickets with search/filter/sort/page, and owner=all/unassigned/mine | Returned subset/order/pagination match query params; 403 for a Requester | `server/tests/lab-03/staff-queue.api.test.ts` | Pass — tested at 3 tickets rather than 40+ (no ticketOwnerId writer exists until Issue #33, so every ticket is unassigned; volume isn't the risk being tested here) |
-| API-19 | API | AC-15 | POST /api/admin/users with an existing email | 409; field=email; no duplicate row | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
-| API-20 | API | AC-16 | POST reset-password, then login with the new password | mustChangePassword true on the next /api/auth/me | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
-| API-21 | API | AC-17 | PATCH self isActive=false as the sole active Administrator; PATCH last Administrator's role away | Both return 409 | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
-| API-22 | API | BR-28/BR-30 | POST/PATCH admin users with invalid role value | 400 | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
+| API-19 | API | AC-15 | POST /api/admin/users with an existing email | 409; field=email; no duplicate row | `server/tests/lab-03/users-admin.api.test.ts` | Pass |
+| API-20 | API | AC-16 | POST reset-password, then login with the new password | mustChangePassword true on the next /api/auth/me | `server/tests/lab-03/users-admin.api.test.ts` | Pass |
+| API-21 | API | AC-17 | PATCH self isActive=false as the sole active Administrator; sole active Administrator changes their own role away from ADMINISTRATOR | Both return 409 | `server/tests/lab-03/users-admin.api.test.ts` | Pass — adapted the second case: only an Administrator can call these routes at all, so a *different* admin acting on the target always implies a second active admin already exists; BR-33 is only actually reachable via the sole admin acting on their own role (BR-32 separately covers their own deactivation) |
+| API-22 | API | BR-28/BR-30 | POST/PATCH admin users with invalid role value | 400 | `server/tests/lab-03/users-admin.api.test.ts` | Pass |
 | REGR-01 | Regression | AC-20 | Full Lab 2 Create-Ticket/My-Tickets/Attachments Supertest suite, adapted to use an authenticated Requester session instead of X-Requester-Id | All Lab 2 assertions still pass unmodified | `server/tests/lab-02/{create-ticket,my-tickets,ticket-detail,attachments}.api.test.ts` | Pass — updated in place rather than duplicated into a separate lab-03 file, since they are literally the same assertions now driven by session auth (see helper `server/tests/lab-03/helpers.ts`) |
 | UI-01 | UI | AC-01/AC-02 | Login form valid + invalid submit | Empty submit shows field errors and doesn't call the API; invalid credentials show a single generic banner; busy state shown while pending | `client/tests/lab-03/Login.test.tsx` | Pass |
 | UI-02 | UI | BR-07 | Change Password live rule checklist | Each rule icon flips to check as satisfied; Continue disabled until all pass; wrong current password shows a safe error and clears that field | `client/tests/lab-03/ChangePassword.test.tsx` | Pass |
@@ -48,7 +48,7 @@ authorization (direct API calls bypassing the UI), migration/regression
 | UI-10 | UI | AC-07 | "Claim for me" action on an unassigned Ticket | Calls the owner update with the session user's own id | `client/tests/lab-03/StaffTicketDetail.test.tsx` | Pass |
 | UI-11 | UI | AC-13 | Requester-confirmation badge in IT Staff Ticket Detail header | Shown when requesterConfirmedResolved is true, in the header (not a tab) | `client/tests/lab-03/StaffTicketDetail.test.tsx` | Pass |
 | UI-07 | UI | Sec. 6 | Ticket Queue empty vs no-results states | Distinct copy/UI for 0-system-wide-tickets vs 0-matches-for-filter | `client/tests/lab-03/StaffTicketQueue.test.tsx` | Pass |
-| UI-08 | UI | AC-15/AC-17 | User Management create-duplicate-email and self-deactivate attempts | Inline field error / inline toggle-revert message shown, no request loop | `client/src/.../UserManagement.test.tsx` | Pending |
+| UI-08 | UI | AC-15/AC-17 | User Management create-duplicate-email and self-deactivate attempts | Inline field error under Email; Active toggle disabled (with explanation) when editing your own account; a server-side conflict on another user's toggle shows inline, not a page banner | `client/tests/lab-03/UserManagement.test.tsx` | Pass |
 | UI-09 | UI | AC-13 | "Problem Appears Resolved" action | Button replaced by a confirmation badge once clicked; button never reappears | `client/tests/lab-02/TicketDetail.test.tsx` | Pass |
 | STYLE-01 | UI Style | Sec. 1 | Role and status badge color classes | Correct class per role/status value; text label always present | `client/src/.../badges.test.tsx` | Pending |
 | RESP-01 | Responsive | Sec. 10 | Login + Ticket Queue + Staff Ticket Detail + User Management screenshots at 1280/900/375px | No clipping, overlap, or horizontal scroll at any viewport | `artifacts/lab-03/screenshots/**/*.png` via `e2e/lab-03/visual.spec.ts` | Pending |
@@ -79,7 +79,7 @@ authorization (direct API calls bypassing the UI), migration/regression
 | AC-15 | API-19, UI-08, E2E-04 |
 | AC-16 | API-20, E2E-04 |
 | AC-17 | API-21, UI-08, E2E-04 |
-| AC-18 | API-08 (staff routes Pass, admin Pending Issue #34), API-18 |
+| AC-18 | API-08 (staff routes), API-18, API-19/API-21 (admin routes) |
 | AC-19 | API-04, E2E-02 |
 | AC-20 | REGR-01, E2E-05 |
 

@@ -88,9 +88,12 @@ all Requesters, owner filter) and a full Ticket Detail screen: claim/
 reassign ownership, IT Priority, the complete status workflow (NEW →
 OPEN/IN_PROGRESS → WAITING_FOR_REQUESTER/RESOLVED → CLOSED/REOPENED/
 CANCELLED per the transition matrix), and Internal Notes kept separate
-from Public Comments. Remaining Lab 3 work (Administrator user
-management) tracked in the `TokTickIT-Lab3` GitHub
-Project.
+from Public Comments. Administrators have a minimalist User Management
+screen: list/search/role-filter, create/edit accounts, activate/
+deactivate, and reset a user's password — with duplicate-email,
+self-deactivation, and last-active-Administrator safety rules enforced
+server-side. Remaining Lab 3 work (responsive/visual QA) tracked in the
+`TokTickIT-Lab3` GitHub Project.
 
 ## Project Structure
 

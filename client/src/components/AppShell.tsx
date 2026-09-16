@@ -26,7 +26,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         style={{ background: "#006B3C" }}
         className="d-flex align-items-center justify-content-between px-4 py-3 text-white flex-wrap gap-2"
       >
-        <Link to="/tickets" className="text-white text-decoration-none fw-bold fs-5">
+        <Link to="/" className="text-white text-decoration-none fw-bold fs-5">
           TokTickIT
         </Link>
 
@@ -58,6 +58,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
             >
               Ticket Queue
             </Link>
+            {user.role === "ADMINISTRATOR" && (
+              <Link
+                to="/admin/users"
+                className="text-white text-decoration-none"
+                style={isActive("/admin/users") ? { textDecoration: "underline", fontWeight: 600 } : {}}
+              >
+                Users
+              </Link>
+            )}
           </nav>
         )}
 
