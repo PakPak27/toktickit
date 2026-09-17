@@ -25,6 +25,7 @@ function renderWithDestinations() {
           <Route path="/login" element={<Login />} />
           <Route path="/change-password" element={<div>Change Password Screen</div>} />
           <Route path="/tickets" element={<div>My Tickets Screen</div>} />
+          <Route path="/" element={<div>Home Redirect Landed</div>} />
         </Routes>
       </AuthProvider>
     </MemoryRouter>
@@ -99,7 +100,7 @@ describe("Login (AC-01, AC-02)", () => {
     expect(screen.queryByText("My Tickets Screen")).not.toBeInTheDocument();
   });
 
-  it("routes a user who already changed their password to My Tickets (AC-01)", async () => {
+  it("routes a user who already changed their password through the shared home redirect (AC-01)", async () => {
     vi.spyOn(authApi, "login").mockResolvedValue({
       id: 1,
       name: "Jennifer Anderson",
@@ -114,7 +115,33 @@ describe("Login (AC-01, AC-02)", () => {
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "N3wSecret!Pass" } });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
-    expect(await screen.findByText("My Tickets Screen")).toBeInTheDocument();
+    // Login always redirects through "/" — the real app's HomeRedirect (not
+    // reproduced in this isolated render) then sends a Requester on to
+    // /tickets. That role-specific step is covered by App-level E2E specs.
+    expect(await screen.findByText("Home Redirect Landed")).toBeInTheDocument();
     expect(screen.queryByText("Change Password Screen")).not.toBeInTheDocument();
+  });
+
+  // Regression test for a real bug this exact gap let through: this guard
+  // only ever redirected to the hardcoded "/tickets", which 403s any role
+  // other than Requester. Only caught via E2E (real IT Staff login), never
+  // by this file, because every prior test here used role: "REQUESTER".
+  it("routes a non-Requester (e.g. IT Staff) through the shared home redirect, never straight to My Tickets", async () => {
+    vi.spyOn(authApi, "login").mockResolvedValue({
+      id: 5,
+      name: "Michael Brown",
+      email: "michael.brown@toktickit.com",
+      role: "IT_STAFF",
+      mustChangePassword: false,
+    });
+    renderWithDestinations();
+
+    await waitFor(() => screen.getByLabelText(/email address/i));
+    fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "a@b.com" } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "N3wSecret!Pass" } });
+    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(await screen.findByText("Home Redirect Landed")).toBeInTheDocument();
+    expect(screen.queryByText("My Tickets Screen")).not.toBeInTheDocument();
   });
 });

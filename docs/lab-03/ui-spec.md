@@ -177,16 +177,21 @@ Password screens. Additional accessibility notes:
   purely visual.
 
 ## 11. Visual Inspection Checklist and Screenshot Paths
-Checklist (completed during the responsive/visual-QA Issue, recorded in
-`tests.md` Section 4):
-- [ ] Role-based navigation shows only permitted destinations at all 3
+Checklist (completed during Issue #35, Responsive & Visual QA; results
+recorded in `tests.md` Section 4):
+- [x] Role-based navigation shows only permitted destinations at all 3
       viewports
-- [ ] Login/Change Password readable and usable at all 3 viewports
-- [ ] Ticket Queue desktop table / mobile card both usable, no overflow
-- [ ] IT Staff Ticket Detail: Public Comments vs. Internal Notes visually
+- [x] Login/Change Password readable and usable at all 3 viewports
+- [x] Ticket Queue desktop table / mobile card both usable, no overflow
+- [x] IT Staff Ticket Detail: Public Comments vs. Internal Notes visually
       distinct at all 3 viewports
-- [ ] User Management modal usable at all 3 viewports (no clipped fields)
-- [ ] No clipping, overlap, or unintended horizontal scroll anywhere
+- [x] User Management modal usable at all 3 viewports (no clipped fields);
+      the underlying user table was found to overflow the page on mobile
+      and was fixed with Bootstrap's `.table-responsive` (see `tests.md`
+      Section 6)
+- [x] No clipping, overlap, or unintended horizontal scroll anywhere
 
-Screenshot paths (Playwright, `e2e/lab-03/visual.spec.ts`):
-`artifacts/lab-03/screenshots/{authentication,staff-queue,staff-ticket-detail,user-management}/`
+Screenshot paths (Playwright, `e2e/lab-03/visual.spec.ts`), 3 viewports
+(1280x900 desktop, 900x1000 tablet, 375x812 mobile) x 4 screens, 12 total:
+`artifacts/lab-03/screenshots/authentication/login-{desktop,tablet,mobile}.png`
+`artifacts/lab-03/screenshots/{staff-queue,staff-ticket-detail,user-management}/{desktop,tablet,mobile}.png`
