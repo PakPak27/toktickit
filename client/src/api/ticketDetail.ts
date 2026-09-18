@@ -21,6 +21,8 @@ export interface TicketDetailDto {
   requestedPriority: "LOW" | "MEDIUM" | "HIGH";
   itPriority: "LOW" | "MEDIUM" | "HIGH" | null;
   currentStatus: string;
+  requesterConfirmedResolved: boolean;
+  requesterConfirmedResolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
   attachments: AttachmentDto[];
@@ -29,9 +31,9 @@ export interface TicketDetailDto {
 export class AccessDeniedError extends Error {}
 export class NotFoundError extends Error {}
 
-export async function fetchTicketDetail(requesterId: number, ticketId: string): Promise<TicketDetailDto> {
+export async function fetchTicketDetail(ticketId: string): Promise<TicketDetailDto> {
   const res = await fetch(`${API_URL}/api/tickets/${ticketId}`, {
-    headers: { "X-Requester-Id": String(requesterId) },
+    credentials: "include",
   });
 
   if (res.status === 403) throw new AccessDeniedError("You do not have access to this ticket");
@@ -41,17 +43,13 @@ export async function fetchTicketDetail(requesterId: number, ticketId: string): 
   return res.json();
 }
 
-export async function uploadAttachment(
-  requesterId: number,
-  ticketId: number,
-  file: File
-): Promise<AttachmentDto> {
+export async function uploadAttachment(ticketId: number, file: File): Promise<AttachmentDto> {
   const formData = new FormData();
   formData.append("file", file);
 
   const res = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments`, {
     method: "POST",
-    headers: { "X-Requester-Id": String(requesterId) },
+    credentials: "include",
     body: formData,
   });
 
@@ -63,13 +61,9 @@ export async function uploadAttachment(
   return res.json();
 }
 
-export async function downloadAttachment(
-  requesterId: number,
-  attachmentId: number,
-  fileName: string
-): Promise<void> {
+export async function downloadAttachment(attachmentId: number, fileName: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/attachments/${attachmentId}/download`, {
-    headers: { "X-Requester-Id": String(requesterId) },
+    credentials: "include",
   });
 
   if (!res.ok) {
@@ -90,17 +84,11 @@ export async function downloadAttachment(
   window.URL.revokeObjectURL(url);
 }
 
-export async function removeAttachment(
-  requesterId: number,
-  attachmentId: number,
-  reason: string
-): Promise<void> {
+export async function removeAttachment(attachmentId: number, reason: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/attachments/${attachmentId}`, {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Requester-Id": String(requesterId),
-    },
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reason }),
   });
 

@@ -2,27 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import MyTickets from "../../src/pages/MyTickets.js";
-import { RequesterProvider } from "../../src/context/RequesterContext.js";
 import * as myTicketsApi from "../../src/api/myTickets.js";
 import * as ticketsApi from "../../src/api/tickets.js";
 
-function renderPage(requesterId = 1) {
-  localStorage.setItem(
-    "toktickit.selectedRequester",
-    JSON.stringify({ id: requesterId, name: "Jennifer Anderson", email: "jennifer.anderson@example.com" })
-  );
+function renderPage() {
   return render(
     <BrowserRouter>
-      <RequesterProvider>
-        <MyTickets />
-      </RequesterProvider>
+      <MyTickets />
     </BrowserRouter>
   );
 }
 
 describe("MyTickets", () => {
   beforeEach(() => {
-    localStorage.clear();
     vi.spyOn(ticketsApi, "fetchCategories").mockResolvedValue([{ id: 1, name: "Hardware" }]);
   });
 
@@ -64,20 +56,24 @@ describe("MyTickets", () => {
     expect(screen.queryByText(/You haven't created any tickets yet/i)).not.toBeInTheDocument();
   });
 
-  it("re-fetches tickets scoped to the newly selected Requester (AC-11)", async () => {
+  // AC-11: ownership scoping is now enforced server-side from the session
+  // (see server/tests/lab-02/my-tickets.api.test.ts) — the client simply
+  // calls the API with no client-supplied identity at all.
+  it("fetches the list with no requesterId argument, relying on the session cookie", async () => {
     const fetchSpy = vi.spyOn(myTicketsApi, "fetchMyTickets").mockResolvedValue({
       data: [],
       pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 1 },
     });
 
-    renderPage(1);
+    renderPage();
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(1, expect.anything());
+      expect(fetchSpy).toHaveBeenCalledWith(expect.objectContaining({ page: 1, pageSize: 10 }));
     });
+    expect(fetchSpy.mock.calls[0]).toHaveLength(1);
   });
 
-      it("renders a desktop page-size selector with 10/20/50 options", async () => {
+  it("renders a desktop page-size selector with 10/20/50 options", async () => {
     vi.spyOn(myTicketsApi, "fetchMyTickets").mockResolvedValue({
       data: [
         {

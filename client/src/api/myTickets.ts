@@ -35,10 +35,7 @@ export interface TicketListQuery {
   pageSize?: number;
 }
 
-export async function fetchMyTickets(
-  requesterId: number,
-  query: TicketListQuery
-): Promise<TicketListResponse> {
+export async function fetchMyTickets(query: TicketListQuery): Promise<TicketListResponse> {
   const params = new URLSearchParams();
   Object.entries(query).forEach(([key, value]) => {
     if (value !== undefined && value !== "") {
@@ -47,7 +44,7 @@ export async function fetchMyTickets(
   });
 
   const res = await fetch(`${API_URL}/api/tickets?${params.toString()}`, {
-    headers: { "X-Requester-Id": String(requesterId) },
+    credentials: "include",
   });
 
   if (!res.ok) {

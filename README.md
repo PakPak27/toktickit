@@ -1,7 +1,8 @@
 # TokTickIT
 
 TokTickIT (ตอกติ๊กกิต) — IT Service Desk application.
-CPE334 Lab 1-2: Full-stack ticketing MVP (React → Express → Prisma → PostgreSQL).
+CPE334 Lab 1-3: Full-stack ticketing app with authentication and role-based
+access (React → Express → Prisma → PostgreSQL).
 
 ## Tech Stack
 
@@ -30,10 +31,17 @@ cd toktickit
 cd server
 npm install
 cp .env.example .env
-# Edit .env and set DATABASE_URL to match your local PostgreSQL user/password/db
+# Edit .env: set DATABASE_URL to match your local PostgreSQL user/password/db,
+# and set JWT_SECRET to your own random local value (see the comment in
+# .env.example for a one-line command to generate one).
 npm run prisma:migrate
 npm run prisma:seed
 \`\`\`
+
+**Lab 3 seed credentials (local development only, never real secrets):**
+every seeded account (Requester, IT Staff, and Administrator) uses the
+password \`ChangeMe123!\` and must change it at first login. See
+\`server/prisma/seed.ts\` for the full list of seeded accounts and roles.
 
 ### 3. Frontend setup
 
@@ -58,7 +66,10 @@ npx playwright install chromium
 
 **Backend** (from \`server/\`): \`npm run test\`
 **Frontend** (from \`client/\`): \`npm run test\`
-**E2E / visual** (from repo root, with both servers running): \`npx playwright test e2e/lab-02\`
+**E2E / visual** (from repo root, with both servers running): \`npx playwright test e2e/lab-03\`
+(\`e2e/lab-02\` was removed in Lab 3 — it depended on the Development
+Requester selector, which no longer exists; its coverage is superseded by
+\`e2e/lab-03/requester-regression.spec.ts\`.)
 
 ## Features
 
@@ -69,6 +80,24 @@ with validation and attachments, My Tickets (search/filter/sort/pagination),
 Requester Ticket Detail with attachment upload/download/soft-removal, responsive
 Zen Green UI, full E2E/visual test coverage.
 
+**Lab 3 (in progress):** email/password authentication with mandatory
+first-login password change; role-based authorization (Requester / IT Staff
+/ Administrator) enforced server-side. The Lab 2 Development Requester
+selector has been fully removed — all Requester ticket/attachment functions
+now run on the authenticated session, with Public Comments and a
+"Problem Appears Resolved" action added to Ticket Detail. IT Staff/
+Administrator have a Ticket Queue (search/filter/sort/pagination across
+all Requesters, owner filter) and a full Ticket Detail screen: claim/
+reassign ownership, IT Priority, the complete status workflow (NEW →
+OPEN/IN_PROGRESS → WAITING_FOR_REQUESTER/RESOLVED → CLOSED/REOPENED/
+CANCELLED per the transition matrix), and Internal Notes kept separate
+from Public Comments. Administrators have a minimalist User Management
+screen: list/search/role-filter, create/edit accounts, activate/
+deactivate, and reset a user's password — with duplicate-email,
+self-deactivation, and last-active-Administrator safety rules enforced
+server-side. Remaining Lab 3 work (responsive/visual QA) tracked in the
+`TokTickIT-Lab3` GitHub Project.
+
 ## Project Structure
 
 \`\`\`
@@ -77,11 +106,11 @@ toktickit/
 ├── server/              # Express + Prisma backend
 │   ├── prisma/          # Prisma schema, migrations, seed
 │   ├── src/              # Express app source
-│   └── tests/lab-01/, lab-02/   # Supertest API tests
+│   └── tests/lab-01/, lab-02/, lab-03/   # Supertest API tests
 ├── e2e/lab-02/           # Playwright E2E and visual tests
 ├── artifacts/lab-02/screenshots/  # Responsive screenshots (desktop/tablet/mobile)
-├── docs/lab-01/, lab-02/  # specification.md, tests.md, ui-spec.md, api-spec.md,
-│                          # ai-use.md, reviewer.md
+├── docs/lab-01/, lab-02/, lab-03/  # specification.md, tests.md, ui-spec.md,
+│                          # api-spec.md, ai-use.md, reviewer.md
 ├── .gitignore
 └── README.md
 \`\`\`
