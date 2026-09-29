@@ -1,0 +1,31 @@
+Direct API authorization evidence (Part 7) - curl against the running dev
+server, no browser/UI involved, proving enforcement is server-side.
+
+$ curl -s -X POST http://localhost:3000/api/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"email":"jennifer.anderson@example.com","password":"ChangeMe123!"}'
+  -> {"id":1,"name":"Jennifer Anderson","role":"REQUESTER","mustChangePassword":false}
+  (session cookie saved; Jennifer Anderson is an authenticated REQUESTER)
+
+$ curl -s -b <cookie-jar> http://localhost:3000/api/staff/tickets
+  -> {"error":"Forbidden"}
+  HTTP_STATUS: 403
+  (a Requester cannot read the IT Staff Ticket Queue, even though the
+  underlying data exists - BR-14)
+
+$ curl -s -b <cookie-jar> http://localhost:3000/api/staff/tickets/1/notes
+  -> {"error":"Forbidden"}
+  HTTP_STATUS: 403
+  (a Requester requesting Internal Notes gets a generic 403 with no note
+  content ever included in the response body - AC-04/BR-29)
+
+$ curl -s -b <cookie-jar> http://localhost:3000/api/admin/users
+  -> {"error":"Forbidden"}
+  HTTP_STATUS: 403
+  (a Requester cannot reach Administrator endpoints - BR-34)
+
+$ curl -s http://localhost:3000/api/auth/me
+  -> {"error":"Authentication required"}
+  HTTP_STATUS: 401
+  (no session cookie at all - unauthenticated request to a protected
+  endpoint is rejected before any authorization check runs)

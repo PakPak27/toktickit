@@ -18,4 +18,4 @@ server/uploads/*
 
 # Playwright test artifacts
 test-results/
-playwright-report/
+playwright-report/artifacts/lab-03/report-evidence/.ticket-number
