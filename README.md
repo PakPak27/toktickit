@@ -80,9 +80,9 @@ with validation and attachments, My Tickets (search/filter/sort/pagination),
 Requester Ticket Detail with attachment upload/download/soft-removal, responsive
 Zen Green UI, full E2E/visual test coverage.
 
-**Lab 3 (in progress):** email/password authentication with mandatory
-first-login password change; role-based authorization (Requester / IT Staff
-/ Administrator) enforced server-side. The Lab 2 Development Requester
+**Lab 3:** email/password authentication with mandatory first-login
+password change; role-based authorization (Requester / IT Staff /
+Administrator) enforced server-side. The Lab 2 Development Requester
 selector has been fully removed — all Requester ticket/attachment functions
 now run on the authenticated session, with Public Comments and a
 "Problem Appears Resolved" action added to Ticket Detail. IT Staff/
@@ -95,20 +95,21 @@ from Public Comments. Administrators have a minimalist User Management
 screen: list/search/role-filter, create/edit accounts, activate/
 deactivate, and reset a user's password — with duplicate-email,
 self-deactivation, and last-active-Administrator safety rules enforced
-server-side. Remaining Lab 3 work (responsive/visual QA) tracked in the
-`TokTickIT-Lab3` GitHub Project.
+server-side. Full responsive/visual QA and E2E coverage complete (21/21
+passing); see `docs/lab-03/tests.md` for the final test report.
 
 ## Project Structure
 
 \`\`\`
 toktickit/
 ├── client/              # React + Vite frontend
+│   └── tests/lab-01/, lab-02/, lab-03/   # Vitest + Testing Library
 ├── server/              # Express + Prisma backend
 │   ├── prisma/          # Prisma schema, migrations, seed
 │   ├── src/              # Express app source
 │   └── tests/lab-01/, lab-02/, lab-03/   # Supertest API tests
-├── e2e/lab-02/           # Playwright E2E and visual tests
-├── artifacts/lab-02/screenshots/  # Responsive screenshots (desktop/tablet/mobile)
+├── e2e/lab-03/           # Playwright E2E and visual tests (supersedes e2e/lab-02)
+├── artifacts/lab-03/screenshots/  # Responsive screenshots (desktop/tablet/mobile)
 ├── docs/lab-01/, lab-02/, lab-03/  # specification.md, tests.md, ui-spec.md,
 │                          # api-spec.md, ai-use.md, reviewer.md
 ├── .gitignore

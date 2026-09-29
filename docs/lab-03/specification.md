@@ -440,28 +440,28 @@ header entirely; ownership comes from the session cookie only (BR-09).
   criteria still pass unmodified in behavior.
 
 ## 10. Definition of Done
-- [ ] All FRs, BRs, and ACs above are implemented and satisfied
-- [ ] All planned tests in `tests.md` pass, traced to specific AC IDs
-- [ ] No required test is skipped, disabled, or commented out
-- [ ] Full Lab 2 regression suite passes unmodified under authenticated
+- [x] All FRs, BRs, and ACs above are implemented and satisfied
+- [x] All planned tests in `tests.md` pass, traced to specific AC IDs
+- [x] No required test is skipped, disabled, or commented out
+- [x] Full Lab 2 regression suite passes unmodified under authenticated
       Requester sessions (no `X-Requester-Id` remaining anywhere)
-- [ ] Data model matches this document and the Prisma schema; migration from
+- [x] Data model matches this document and the Prisma schema; migration from
       `RequesterUser` preserves all existing Ticket/Attachment data
-- [ ] All API responses match `api-spec.md` (status codes, shapes, error
+- [x] All API responses match `api-spec.md` (status codes, shapes, error
       cases), including 401 vs 403 vs 404 distinctions
-- [ ] Every protected backend operation is authorization-checked
+- [x] Every protected backend operation is authorization-checked
       independently of the frontend (verified by direct API tests bypassing
       the UI)
-- [ ] UI matches `ui-spec.md` (Zen Green tokens, states, responsive rules,
+- [x] UI matches `ui-spec.md` (Zen Green tokens, states, responsive rules,
       role-specific navigation)
-- [ ] Passwords are hashed (bcrypt); no plaintext password appears in the
+- [x] Passwords are hashed (bcrypt); no plaintext password appears in the
       database, logs, or source control
-- [ ] Playwright screenshots exist for desktop/tablet/mobile for Login,
+- [x] Playwright screenshots exist for desktop/tablet/mobile for Login,
       Ticket Queue, IT Staff Ticket Detail, and User Management
-- [ ] README setup/test instructions are current for Lab 3, including the
+- [x] README setup/test instructions are current for Lab 3, including the
       documented seed credentials
-- [ ] Peer review approved on every Issue's PR into `lab3-staging`
-- [ ] `lab3-staging` merged into `main` via a single release PR
+- [x] Peer review approved on every Issue's PR into `lab3-staging`
+- [x] `lab3-staging` merged into `main` via a single release PR
 
 ## 11. Assumptions and Decisions
 - **Session mechanism:** a signed JWT stored in an httpOnly, `SameSite=Lax`
