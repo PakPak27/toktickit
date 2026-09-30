@@ -126,4 +126,11 @@ resolved" flag when the Requester posts a new Public Comment, with no rule
 covering a ticket going `CLOSED → REOPENED` — so a stale "appears resolved"
 hint could still show on a ticket that was just reopened specifically
 because it wasn't actually resolved.
-**Partner's response:** _Pending — will record once Punyawat replies/fixes._
+**Partner's response:** Agreed with both and fixed them in commit `0051bb8`.
+(1) Added BR-19a: claiming an unassigned Ticket is self-claim only — a
+`ticketOwnerId` that isn't the caller's own id is rejected with 400 while
+the Ticket is unassigned, matching what `ui-spec.md` §6 actually exposes;
+handing an unclaimed Ticket to a colleague now requires claiming it first,
+then reassigning (BR-19). (2) Added BR-27a: reopening a Ticket into
+`REOPENED` now also clears `appearsResolvedAt`. Added AC-21/AC-22 and the
+corresponding tests (API-16a/API-25a) with traceability, then merged.
