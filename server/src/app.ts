@@ -881,4 +881,238 @@ app.get("/api/staff/tickets/:id/notes", ...requireStaffSession, async (req: Requ
   }
 });
 
+// ---------------------------------------------------------------------------
+// Lab 4 Issue #47 — Actions Taken (specification.md BR-01 to BR-09)
+// ---------------------------------------------------------------------------
+function serializeActionTaken(a: {
+  id: number;
+  ticketId: number;
+  performedById: number;
+  description: string;
+  result: string;
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  performedBy: { name: string };
+}) {
+  return {
+    id: a.id,
+    ticketId: a.ticketId,
+    performedById: a.performedById,
+    performedByName: a.performedBy.name,
+    description: a.description,
+    result: a.result,
+    followUpRequired: a.followUpRequired,
+    followUpNote: a.followUpNote,
+    attachmentNotes: a.attachmentNotes,
+    createdAt: a.createdAt,
+    updatedAt: a.updatedAt,
+  };
+}
+
+// BR-05/BR-06/BR-07: shared validation for both create and edit. Returns a
+// field-level error message, or null when the whole payload is valid.
+function validateActionTakenInput(body: Record<string, unknown>, opts: { partial: boolean }): string | null {
+  const has = (key: string) => !opts.partial || body[key] !== undefined;
+
+  if (has("description")) {
+    const d = typeof body.description === "string" ? body.description.trim() : "";
+    if (!d || d.length > 2000) return "Description is required (1-2000 characters)";
+  }
+  if (has("result")) {
+    const r = typeof body.result === "string" ? body.result.trim() : "";
+    if (!r || r.length > 2000) return "Result is required (1-2000 characters)";
+  }
+  if (has("followUpRequired") && typeof body.followUpRequired !== "boolean") {
+    return "followUpRequired must be true or false";
+  }
+  // BR-06: Follow-up Note is required (1-1000 chars) exactly when
+  // followUpRequired is true — checked whenever either field is present so
+  // a partial PATCH can't leave the pair in an inconsistent state.
+  if (has("followUpRequired") || has("followUpNote")) {
+    const required = body.followUpRequired === true;
+    const note = typeof body.followUpNote === "string" ? body.followUpNote.trim() : "";
+    if (required && (!note || note.length > 1000)) {
+      return "A follow-up note (1-1000 characters) is required when follow-up is needed";
+    }
+  }
+  if (has("attachmentNotes")) {
+    const notes = body.attachmentNotes;
+    if (notes !== undefined && notes !== null && notes !== "") {
+      if (typeof notes !== "string" || notes.length > 500) {
+        return "Attachment notes must be 500 characters or fewer";
+      }
+    }
+  }
+  return null;
+}
+
+app.get("/api/staff/tickets/:id/actions", ...requireStaffSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  if (Number.isNaN(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+
+  try {
+    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    const actions = await getPrisma().actionTaken.findMany({
+      where: { ticketId },
+      orderBy: { createdAt: "desc" },
+      include: { performedBy: { select: { name: true } } },
+    });
+
+    res.status(200).json(actions.map(serializeActionTaken));
+  } catch (err) {
+    console.error("Failed to fetch actions taken:", err);
+    res.status(500).json({ error: "Unable to load actions taken" });
+  }
+});
+
+app.post("/api/staff/tickets/:id/actions", ...requireStaffSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  if (Number.isNaN(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const validationError = validateActionTakenInput(body, { partial: false });
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
+
+  try {
+    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    const followUpRequired = body.followUpRequired === true;
+    const created = await getPrisma().actionTaken.create({
+      data: {
+        ticketId,
+        performedById: req.user!.id,
+        description: (body.description as string).trim(),
+        result: (body.result as string).trim(),
+        followUpRequired,
+        // BR-06: never persist a note alongside followUpRequired=false.
+        followUpNote: followUpRequired ? (body.followUpNote as string).trim() : null,
+        attachmentNotes:
+          typeof body.attachmentNotes === "string" && body.attachmentNotes.trim() ? body.attachmentNotes.trim() : null,
+      },
+      include: { performedBy: { select: { name: true } } },
+    });
+
+    res.status(201).json(serializeActionTaken(created));
+  } catch (err) {
+    console.error("Failed to create action taken:", err);
+    res.status(500).json({ error: "Unable to create action taken" });
+  }
+});
+
+app.patch(
+  "/api/staff/tickets/:id/actions/:actionId",
+  ...requireStaffSession,
+  async (req: Request, res: Response) => {
+    const ticketId = Number(req.params.id);
+    const actionId = Number(req.params.actionId);
+    if (Number.isNaN(ticketId) || Number.isNaN(actionId)) {
+      return res.status(404).json({ error: "Action taken not found" });
+    }
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const hasAnyField = ["description", "result", "followUpRequired", "followUpNote", "attachmentNotes"].some(
+      (k) => body[k] !== undefined
+    );
+    if (!hasAnyField) {
+      return res.status(400).json({ error: "Supply at least one field to update" });
+    }
+    if (typeof body.updatedAt !== "string" || Number.isNaN(Date.parse(body.updatedAt))) {
+      return res.status(400).json({ error: "updatedAt is required and must be a valid timestamp" });
+    }
+    const validationError = validateActionTakenInput(body, { partial: true });
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
+    }
+
+    try {
+      const existing = await getPrisma().actionTaken.findUnique({ where: { id: actionId } });
+      if (!existing || existing.ticketId !== ticketId) {
+        return res.status(404).json({ error: "Action taken not found" });
+      }
+
+      // BR-13: optimistic concurrency — reject a PATCH built on a stale read
+      // instead of silently overwriting a newer edit.
+      if (existing.updatedAt.getTime() !== Date.parse(body.updatedAt)) {
+        const current = await getPrisma().actionTaken.findUniqueOrThrow({
+          where: { id: actionId },
+          include: { performedBy: { select: { name: true } } },
+        });
+        return res.status(409).json({
+          error: "This entry changed since you opened it",
+          current: serializeActionTaken(current),
+        });
+      }
+
+      const nextFollowUpRequired =
+        body.followUpRequired !== undefined ? (body.followUpRequired as boolean) : existing.followUpRequired;
+      // BR-06: derive the note from the *effective* flag, not just whether
+      // followUpNote was supplied, so flipping followUpRequired to false
+      // always clears a leftover note even if followUpNote wasn't sent.
+      const nextFollowUpNote = nextFollowUpRequired
+        ? typeof body.followUpNote === "string"
+          ? body.followUpNote.trim()
+          : existing.followUpNote
+        : null;
+
+      const updated = await getPrisma().actionTaken.update({
+        where: { id: actionId },
+        data: {
+          ...(body.description !== undefined ? { description: (body.description as string).trim() } : {}),
+          ...(body.result !== undefined ? { result: (body.result as string).trim() } : {}),
+          followUpRequired: nextFollowUpRequired,
+          followUpNote: nextFollowUpNote,
+          ...(body.attachmentNotes !== undefined
+            ? { attachmentNotes: (body.attachmentNotes as string)?.trim() || null }
+            : {}),
+        },
+        include: { performedBy: { select: { name: true } } },
+      });
+
+      res.status(200).json(serializeActionTaken(updated));
+    } catch (err) {
+      console.error("Failed to update action taken:", err);
+      res.status(500).json({ error: "Unable to update action taken" });
+    }
+  }
+);
+
+app.get("/api/tickets/:id/actions", ...requireAuthenticatedSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  if (Number.isNaN(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+
+  try {
+    const ticket = await loadTicketForCommentAccess(req, res, ticketId);
+    if (!ticket) return;
+
+    const actions = await getPrisma().actionTaken.findMany({
+      where: { ticketId },
+      orderBy: { createdAt: "desc" },
+      include: { performedBy: { select: { name: true } } },
+    });
+
+    res.status(200).json(actions.map(serializeActionTaken));
+  } catch (err) {
+    console.error("Failed to fetch actions taken:", err);
+    res.status(500).json({ error: "Unable to load actions taken" });
+  }
+});
+
 export default app;
