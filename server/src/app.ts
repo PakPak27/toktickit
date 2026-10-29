@@ -912,9 +912,14 @@ function serializeActionTaken(a: {
   };
 }
 
-// BR-05/BR-06/BR-07: shared validation for both create and edit. Returns a
-// field-level error message, or null when the whole payload is valid.
-function validateActionTakenInput(body: Record<string, unknown>, opts: { partial: boolean }): string | null {
+// BR-05/BR-06/BR-07: shared validation for both create and edit. `existing`
+// supplies the effective followUpRequired/followUpNote on a partial PATCH
+// that only sends one of the two, so that pair is always validated together
+// against what the row will actually end up with, not just what was sent.
+function validateActionTakenInput(
+  body: Record<string, unknown>,
+  opts: { partial: boolean; existing?: { followUpRequired: boolean; followUpNote: string | null } }
+): string | null {
   const has = (key: string) => !opts.partial || body[key] !== undefined;
 
   if (has("description")) {
@@ -930,10 +935,14 @@ function validateActionTakenInput(body: Record<string, unknown>, opts: { partial
   }
   // BR-06: Follow-up Note is required (1-1000 chars) exactly when
   // followUpRequired is true — checked whenever either field is present so
-  // a partial PATCH can't leave the pair in an inconsistent state.
+  // a partial PATCH can't leave the pair in an inconsistent state. Checked
+  // against the *effective* values (falling back to `existing`), not just
+  // whichever of the two fields this particular request happened to send.
   if (has("followUpRequired") || has("followUpNote")) {
-    const required = body.followUpRequired === true;
-    const note = typeof body.followUpNote === "string" ? body.followUpNote.trim() : "";
+    const required =
+      body.followUpRequired !== undefined ? body.followUpRequired === true : opts.existing?.followUpRequired ?? false;
+    const note =
+      typeof body.followUpNote === "string" ? body.followUpNote.trim() : opts.existing?.followUpNote ?? "";
     if (required && (!note || note.length > 1000)) {
       return "A follow-up note (1-1000 characters) is required when follow-up is needed";
     }
@@ -951,7 +960,7 @@ function validateActionTakenInput(body: Record<string, unknown>, opts: { partial
 
 app.get("/api/staff/tickets/:id/actions", ...requireStaffSession, async (req: Request, res: Response) => {
   const ticketId = Number(req.params.id);
-  if (Number.isNaN(ticketId)) {
+  if (!Number.isInteger(ticketId)) {
     return res.status(404).json({ error: "Ticket not found" });
   }
 
@@ -976,7 +985,7 @@ app.get("/api/staff/tickets/:id/actions", ...requireStaffSession, async (req: Re
 
 app.post("/api/staff/tickets/:id/actions", ...requireStaffSession, async (req: Request, res: Response) => {
   const ticketId = Number(req.params.id);
-  if (Number.isNaN(ticketId)) {
+  if (!Number.isInteger(ticketId)) {
     return res.status(404).json({ error: "Ticket not found" });
   }
 
@@ -1021,7 +1030,7 @@ app.patch(
   async (req: Request, res: Response) => {
     const ticketId = Number(req.params.id);
     const actionId = Number(req.params.actionId);
-    if (Number.isNaN(ticketId) || Number.isNaN(actionId)) {
+    if (!Number.isInteger(ticketId) || !Number.isInteger(actionId)) {
       return res.status(404).json({ error: "Action taken not found" });
     }
 
@@ -1035,10 +1044,6 @@ app.patch(
     if (typeof body.updatedAt !== "string" || Number.isNaN(Date.parse(body.updatedAt))) {
       return res.status(400).json({ error: "updatedAt is required and must be a valid timestamp" });
     }
-    const validationError = validateActionTakenInput(body, { partial: true });
-    if (validationError) {
-      return res.status(400).json({ error: validationError });
-    }
 
     try {
       const existing = await getPrisma().actionTaken.findUnique({ where: { id: actionId } });
@@ -1046,19 +1051,18 @@ app.patch(
         return res.status(404).json({ error: "Action taken not found" });
       }
 
-      // BR-13: optimistic concurrency — reject a PATCH built on a stale read
-      // instead of silently overwriting a newer edit.
-      if (existing.updatedAt.getTime() !== Date.parse(body.updatedAt)) {
-        const current = await getPrisma().actionTaken.findUniqueOrThrow({
-          where: { id: actionId },
-          include: { performedBy: { select: { name: true } } },
-        });
-        return res.status(409).json({
-          error: "This entry changed since you opened it",
-          current: serializeActionTaken(current),
-        });
+      // BR-06: validated against the *effective* followUpRequired/followUpNote
+      // (falling back to `existing`), so a PATCH that only sends one of the
+      // two fields can't leave the pair in an inconsistent state.
+      const validationError = validateActionTakenInput(body, { partial: true, existing });
+      if (validationError) {
+        return res.status(400).json({ error: validationError });
       }
 
+      // BR-13: optimistic concurrency — atomic compare-and-swap on updatedAt
+      // so two PATCHes built on the same stale read can't both pass a
+      // check-then-write race and have the second silently overwrite the
+      // first; only one `updateMany` can match and update the row.
       const nextFollowUpRequired =
         body.followUpRequired !== undefined ? (body.followUpRequired as boolean) : existing.followUpRequired;
       // BR-06: derive the note from the *effective* flag, not just whether
@@ -1070,8 +1074,8 @@ app.patch(
           : existing.followUpNote
         : null;
 
-      const updated = await getPrisma().actionTaken.update({
-        where: { id: actionId },
+      const { count } = await getPrisma().actionTaken.updateMany({
+        where: { id: actionId, ticketId, updatedAt: new Date(Date.parse(body.updatedAt as string)) },
         data: {
           ...(body.description !== undefined ? { description: (body.description as string).trim() } : {}),
           ...(body.result !== undefined ? { result: (body.result as string).trim() } : {}),
@@ -1081,6 +1085,24 @@ app.patch(
             ? { attachmentNotes: (body.attachmentNotes as string)?.trim() || null }
             : {}),
         },
+      });
+
+      if (count === 0) {
+        const current = await getPrisma().actionTaken.findUniqueOrThrow({
+          where: { id: actionId },
+          include: { performedBy: { select: { name: true } } },
+        });
+        return res.status(409).json({
+          error: {
+            code: "STALE_UPDATE",
+            message: "This entry changed since you opened it",
+            current: serializeActionTaken(current),
+          },
+        });
+      }
+
+      const updated = await getPrisma().actionTaken.findUniqueOrThrow({
+        where: { id: actionId },
         include: { performedBy: { select: { name: true } } },
       });
 
@@ -1094,7 +1116,7 @@ app.patch(
 
 app.get("/api/tickets/:id/actions", ...requireAuthenticatedSession, async (req: Request, res: Response) => {
   const ticketId = Number(req.params.id);
-  if (Number.isNaN(ticketId)) {
+  if (!Number.isInteger(ticketId)) {
     return res.status(404).json({ error: "Ticket not found" });
   }
 

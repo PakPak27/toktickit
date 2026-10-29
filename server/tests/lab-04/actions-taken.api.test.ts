@@ -127,10 +127,53 @@ describe("PATCH /api/staff/tickets/:id/actions/:actionId (AC-02, AC-07)", () => 
       .patch(`/api/staff/tickets/${ticketId}/actions/${actionId}`)
       .send({ result: "Should be rejected.", updatedAt: created.body.updatedAt });
     expect(staleEdit.status).toBe(409);
-    expect(staleEdit.body.current.result).toBe("Updated by the first edit.");
+    expect(staleEdit.body.error.code).toBe("STALE_UPDATE");
+    expect(staleEdit.body.error.current.result).toBe("Updated by the first edit.");
 
     const stillCurrent = await getPrisma().actionTaken.findUnique({ where: { id: actionId } });
     expect(stillCurrent?.result).toBe("Updated by the first edit.");
+  });
+
+  it("rejects a partial PATCH that would leave followUpRequired=true with an empty note (BR-06)", async () => {
+    const created = await staffAgentA.post(`/api/staff/tickets/${ticketId}/actions`).send({
+      description: "Needs vendor follow-up.",
+      result: "Opened a ticket with the vendor.",
+      followUpRequired: true,
+      followUpNote: "Waiting on vendor response.",
+    });
+    const actionId = created.body.id;
+
+    // Sends only followUpNote; followUpRequired stays true from the existing row.
+    const res = await staffAgentA
+      .patch(`/api/staff/tickets/${ticketId}/actions/${actionId}`)
+      .send({ followUpNote: "", updatedAt: created.body.updatedAt });
+    expect(res.status).toBe(400);
+
+    const unchanged = await getPrisma().actionTaken.findUnique({ where: { id: actionId } });
+    expect(unchanged?.followUpRequired).toBe(true);
+    expect(unchanged?.followUpNote).toBe("Waiting on vendor response.");
+  });
+
+  it("accepts a partial PATCH sending only followUpRequired=true when a note already exists", async () => {
+    const created = await staffAgentA.post(`/api/staff/tickets/${ticketId}/actions`).send({
+      description: "Needs a second follow-up.",
+      result: "Opened a second ticket.",
+      followUpRequired: false,
+    });
+    const actionId = created.body.id;
+
+    // Give it a note first via the full create-equivalent two-step edit isn't
+    // possible (followUpRequired=false forces followUpNote=null), so set both.
+    const withNote = await staffAgentA
+      .patch(`/api/staff/tickets/${ticketId}/actions/${actionId}`)
+      .send({ followUpRequired: true, followUpNote: "Pre-existing note.", updatedAt: created.body.updatedAt });
+    expect(withNote.status).toBe(200);
+
+    const res = await staffAgentA
+      .patch(`/api/staff/tickets/${ticketId}/actions/${actionId}`)
+      .send({ followUpRequired: true, updatedAt: withNote.body.updatedAt });
+    expect(res.status).toBe(200);
+    expect(res.body.followUpNote).toBe("Pre-existing note.");
   });
 });
 
