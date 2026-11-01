@@ -198,6 +198,50 @@ describe("Actions Taken — IT Staff Ticket Detail", () => {
     });
     expect(screen.queryByText(/changed since you opened it/i)).not.toBeInTheDocument();
   });
+
+  // Review of PR #55: Save -> row updated in place, form closes.
+  it("saves a successful edit, updating the row in place and closing the form", async () => {
+    const original = makeAction({ id: 4, description: "Original description.", result: "Original result." });
+    vi.spyOn(actionsTakenApi, "fetchStaffActionsTaken").mockResolvedValue([original]);
+    vi.spyOn(actionsTakenApi, "updateActionTaken").mockResolvedValue(
+      makeAction({ id: 4, description: "Edited description.", result: "Original result." })
+    );
+    renderStaffPage();
+
+    fireEvent.click(await screen.findByText(/Actions Taken \(1\)/i));
+    fireEvent.click(await screen.findByText("Edit"));
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Edited description." } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Edited description.")).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+  });
+
+  // Review of PR #55: clearing Attachment Notes on edit must actually clear
+  // it server-side, not be dropped by a `|| undefined` on an empty string.
+  it("sends an emptied Attachment Notes field as an empty string, not undefined", async () => {
+    const original = makeAction({ id: 5, attachmentNotes: "See photo.jpg" });
+    vi.spyOn(actionsTakenApi, "fetchStaffActionsTaken").mockResolvedValue([original]);
+    const updateSpy = vi
+      .spyOn(actionsTakenApi, "updateActionTaken")
+      .mockResolvedValue(makeAction({ id: 5, attachmentNotes: null }));
+    renderStaffPage();
+
+    fireEvent.click(await screen.findByText(/Actions Taken \(1\)/i));
+    fireEvent.click(await screen.findByText("Edit"));
+    fireEvent.change(screen.getByLabelText("Attachment Notes"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith(
+        1,
+        5,
+        expect.objectContaining({ attachmentNotes: "" })
+      );
+    });
+  });
 });
 
 describe("Actions Taken — Requester Ticket Detail (read-only, UI-04)", () => {

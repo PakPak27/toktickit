@@ -274,7 +274,11 @@ export default function StaffTicketDetail() {
         result: editResult.trim(),
         followUpRequired: editFollowUpRequired,
         followUpNote: editFollowUpRequired ? editFollowUpNote.trim() : undefined,
-        attachmentNotes: editAttachmentNotes.trim() || undefined,
+        // Always sent (never `|| undefined`) so clearing the field on edit
+        // actually clears it — the PATCH handler only touches a field when
+        // it's present in the body, and the server already turns "" into
+        // null.
+        attachmentNotes: editAttachmentNotes.trim(),
         updatedAt: editBaseUpdatedAt,
       });
       setActions((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
