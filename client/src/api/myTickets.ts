@@ -29,6 +29,10 @@ export interface TicketListQuery {
   categoryId?: number;
   requestedPriority?: string;
   currentStatus?: string;
+  // Dashboard drill-down (FR-11): "active" = every status except
+  // Resolved/Closed/Cancelled. Ignored by the server when currentStatus is
+  // also given.
+  statusGroup?: "active";
   sort?: string;
   order?: "asc" | "desc";
   page?: number;

@@ -10,16 +10,22 @@ import TicketDetail from "./pages/TicketDetail.js";
 import StaffTicketQueue from "./pages/StaffTicketQueue.js";
 import StaffTicketDetail from "./pages/StaffTicketDetail.js";
 import UserManagement from "./pages/UserManagement.js";
+import RequesterDashboard from "./pages/RequesterDashboard.js";
+import StaffDashboard from "./pages/StaffDashboard.js";
 import Login from "./pages/Login.js";
 import ChangePassword from "./pages/ChangePassword.js";
 
-// Every role has a different "home" screen — routed once here instead of
-// hard-coding "/tickets" everywhere a redirect target is needed.
+// ui-spec.md §1 — every role now lands on the Dashboard instead of their
+// own list screen; My Tickets/Ticket Queue/Users remain reachable from nav.
 function HomeRedirect() {
+  return <Navigate to="/dashboard" replace />;
+}
+
+// One route, role-switched content — Requester and IT Staff/Administrator
+// each see their own Dashboard, no separate per-role URL (ui-spec.md §1).
+function Dashboard() {
   const { user } = useAuth();
-  const target =
-    user?.role === "REQUESTER" ? "/tickets" : user?.role === "ADMINISTRATOR" ? "/admin/users" : "/staff/queue";
-  return <Navigate to={target} replace />;
+  return user?.role === "REQUESTER" ? <RequesterDashboard /> : <StaffDashboard />;
 }
 
 export default function App() {
@@ -35,6 +41,16 @@ export default function App() {
             element={
               <RequireAuth>
                 <HomeRedirect />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <RequireAuth>
+                <AppShell>
+                  <Dashboard />
+                </AppShell>
               </RequireAuth>
             }
           />

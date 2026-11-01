@@ -4,7 +4,7 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { getPrisma } from "./prisma.js";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, TicketStatus } from "@prisma/client";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -39,6 +39,10 @@ const KNOWN_PRIORITY_VALUES: string[] = ["LOW", "MEDIUM", "HIGH"];
 // Issue #33 introduced the full workflow enum — reuse the same list the
 // status-transition matrix validates against instead of a stale copy.
 const KNOWN_STATUS_VALUES: string[] = ALL_STATUSES;
+// Lab 4 — the Requester Dashboard's "Open" metric and its My Tickets
+// drill-down (BR-16/FR-11) both need the same "active" definition, so the
+// count the Dashboard shows always matches the list the link opens.
+const ACTIVE_STATUSES = ALL_STATUSES.filter((s) => !["RESOLVED", "CLOSED", "CANCELLED"].includes(s)) as TicketStatus[];
 
 export const app = express();
 
@@ -182,6 +186,10 @@ app.get("/api/tickets", ...requireRequesterSession, async (req: Request, res: Re
     }
     if (req.query.currentStatus && KNOWN_STATUS_VALUES.includes(String(req.query.currentStatus))) {
       where.currentStatus = String(req.query.currentStatus);
+    } else if (req.query.statusGroup === "active") {
+      // Dashboard drill-down (FR-11): ignored when currentStatus is also
+      // given, per api-spec.md.
+      where.currentStatus = { in: ACTIVE_STATUSES };
     }
 
     const [data, totalItems] = await Promise.all([
@@ -1185,6 +1193,87 @@ app.get("/api/tickets/:id/actions", ...requireAuthenticatedSession, async (req: 
   } catch (err) {
     console.error("Failed to fetch actions taken:", err);
     res.status(500).json({ error: "Unable to load actions taken" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Lab 4 — Dashboards (specification.md FR-08 to FR-11, BR-16 to BR-20)
+// ---------------------------------------------------------------------------
+const RECENT_TICKET_SELECT = {
+  id: true,
+  ticketNumber: true,
+  summary: true,
+  currentStatus: true,
+  updatedAt: true,
+} as const;
+
+app.get("/api/dashboard/requester", ...requireRequesterSession, async (req: Request, res: Response) => {
+  try {
+    const prisma = getPrisma();
+    const requesterId = req.user!.id;
+
+    const [openCount, inProgressCount, waitingForRequesterCount, resolvedCount, closedCount, recentTickets, attentionTickets] =
+      await Promise.all([
+        prisma.ticket.count({ where: { requesterId, currentStatus: { in: ACTIVE_STATUSES } } }),
+        prisma.ticket.count({ where: { requesterId, currentStatus: "IN_PROGRESS" } }),
+        prisma.ticket.count({ where: { requesterId, currentStatus: "WAITING_FOR_REQUESTER" } }),
+        prisma.ticket.count({ where: { requesterId, currentStatus: "RESOLVED" } }),
+        prisma.ticket.count({ where: { requesterId, currentStatus: "CLOSED" } }),
+        prisma.ticket.findMany({
+          where: { requesterId },
+          orderBy: { updatedAt: "desc" },
+          take: 5,
+          select: RECENT_TICKET_SELECT,
+        }),
+        prisma.ticket.findMany({
+          where: { requesterId, currentStatus: "WAITING_FOR_REQUESTER" },
+          orderBy: { updatedAt: "desc" },
+          take: 5,
+          select: RECENT_TICKET_SELECT,
+        }),
+      ]);
+
+    res.status(200).json({
+      metrics: { openCount, inProgressCount, waitingForRequesterCount, resolvedCount, closedCount },
+      recentTickets,
+      attentionTickets,
+    });
+  } catch (err) {
+    console.error("Failed to load Requester dashboard:", err);
+    res.status(500).json({ error: "Unable to load your dashboard" });
+  }
+});
+
+app.get("/api/dashboard/staff", ...requireStaffSession, async (req: Request, res: Response) => {
+  try {
+    const prisma = getPrisma();
+    const me = req.user!.id;
+
+    const [newCount, openCount, inProgressCount, waitingForRequesterCount, unassignedCount, myAssignedCount, recentTicketRows] =
+      await Promise.all([
+        prisma.ticket.count({ where: { currentStatus: "NEW" } }),
+        prisma.ticket.count({ where: { currentStatus: "OPEN" } }),
+        prisma.ticket.count({ where: { currentStatus: "IN_PROGRESS" } }),
+        prisma.ticket.count({ where: { currentStatus: "WAITING_FOR_REQUESTER" } }),
+        prisma.ticket.count({ where: { ticketOwnerId: null } }),
+        prisma.ticket.count({ where: { ticketOwnerId: me } }),
+        prisma.ticket.findMany({
+          orderBy: { updatedAt: "desc" },
+          take: 5,
+          select: { ...RECENT_TICKET_SELECT, ticketOwner: { select: { name: true } } },
+        }),
+      ]);
+
+    res.status(200).json({
+      metrics: { newCount, openCount, inProgressCount, waitingForRequesterCount, unassignedCount, myAssignedCount },
+      recentTickets: recentTicketRows.map(({ ticketOwner, ...t }) => ({
+        ...t,
+        ticketOwnerName: ticketOwner?.name ?? null,
+      })),
+    });
+  } catch (err) {
+    console.error("Failed to load Staff dashboard:", err);
+    res.status(500).json({ error: "Unable to load your dashboard" });
   }
 });
 

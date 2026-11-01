@@ -115,5 +115,16 @@ Requires session, role `IT_STAFF`/`ADMINISTRATOR`.
   viewer's). `myAssignedCount` = Tickets with `ticketOwnerId = session user
   id`. `recentTickets` = the 5 most-recently-updated Tickets system-wide.
 
+### Drill-down filters (FR-11)
+- `GET /api/tickets` gains `statusGroup=active` — every status except
+  `RESOLVED`/`CLOSED`/`CANCELLED`, the same set `openCount` above uses.
+  Ignored when `currentStatus` is also given.
+- `GET /api/staff/tickets`'s existing `owner=unassigned|mine` is what a
+  dashboard card's `ownership` link maps to client-side — no new backend
+  parameter needed there, only `currentStatus`/`owner` already supported.
+- My Tickets and the Ticket Queue read `status`/`statusGroup`/`ownership`
+  from the page URL once on load, so a dashboard card's link lands on an
+  already-filtered list showing the same Tickets the count was based on.
+
 Both dashboard responses are deliberately small (counts + ≤5-row lists,
 never a full Ticket collection) per labsheet §6.2.
