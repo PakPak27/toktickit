@@ -1,9 +1,27 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { fetchStaffTickets, StaffTicketListItem } from "../api/staffQueue.js";
 import { fetchCategories, CategoryDto } from "../api/tickets.js";
 
 type LoadState = "loading" | "success" | "error";
+
+// Dashboard drill-down parity (FR-11): every status a Staff Dashboard card
+// can link to.
+const STATUS_OPTIONS = [
+  { value: "", label: "All Statuses" },
+  { value: "NEW", label: "New" },
+  { value: "OPEN", label: "Open" },
+  { value: "IN_PROGRESS", label: "In Progress" },
+  { value: "WAITING_FOR_REQUESTER", label: "Waiting for Requester" },
+  { value: "RESOLVED", label: "Resolved" },
+  { value: "CLOSED", label: "Closed" },
+  { value: "REOPENED", label: "Reopened" },
+  { value: "CANCELLED", label: "Cancelled" },
+];
+
+function ownershipFromParam(value: string | null): "all" | "unassigned" | "mine" {
+  return value === "unassigned" || value === "mine" ? value : "all";
+}
 
 const PRIORITY_STYLES: Record<string, { bg: string; color: string }> = {
   LOW: { bg: "#EAF6EF", color: "#1F2A24" },
@@ -24,6 +42,8 @@ function PriorityBadge({ value }: { value: string | null }) {
 }
 
 export default function StaffTicketQueue() {
+  const [searchParams] = useSearchParams();
+
   const [tickets, setTickets] = useState<StaffTicketListItem[]>([]);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [totalItems, setTotalItems] = useState(0);
@@ -34,8 +54,11 @@ export default function StaffTicketQueue() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [itPriorityFilter, setItPriorityFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [ownerFilter, setOwnerFilter] = useState<"all" | "unassigned" | "mine">("all");
+  // Dashboard drill-down (FR-11): a landing link carries its filter in the URL.
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") ?? "");
+  const [ownerFilter, setOwnerFilter] = useState<"all" | "unassigned" | "mine">(() =>
+    ownershipFromParam(searchParams.get("ownership"))
+  );
   const [sort, setSort] = useState("status");
   const [order, setOrder] = useState<"asc" | "desc">("asc");
 
@@ -134,8 +157,9 @@ export default function StaffTicketQueue() {
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
             >
-              <option value="">All Statuses</option>
-              <option value="NEW">New</option>
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
           </div>
           <div className="col-md-3">

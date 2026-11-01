@@ -33,6 +33,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
         {user && user.role === "REQUESTER" && (
           <nav className="d-flex gap-3">
             <Link
+              to="/dashboard"
+              className="text-white text-decoration-none"
+              aria-current={isActive("/dashboard") ? "page" : undefined}
+              style={isActive("/dashboard") ? { textDecoration: "underline", fontWeight: 600 } : {}}
+            >
+              Dashboard
+            </Link>
+            <Link
               to="/tickets"
               className="text-white text-decoration-none"
               style={isActive("/tickets") && !isActive("/tickets/new") ? { textDecoration: "underline", fontWeight: 600 } : {}}
@@ -51,6 +59,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
         {user && (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") && (
           <nav className="d-flex gap-3">
+            <Link
+              to="/dashboard"
+              className="text-white text-decoration-none"
+              aria-current={isActive("/dashboard") ? "page" : undefined}
+              style={isActive("/dashboard") ? { textDecoration: "underline", fontWeight: 600 } : {}}
+            >
+              Dashboard
+            </Link>
             <Link
               to="/staff/queue"
               className="text-white text-decoration-none"

@@ -28,22 +28,22 @@ unmodified), and E2E (Playwright, full flow against a running dev server).
 | API-11 | API | AC-06 | Clear the open follow-up via PATCH .../actions, then retry RESOLVED | 200; status becomes RESOLVED | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass |
 | API-12 | API | AC-07, BR-14 | PATCH status with a stale Ticket `updatedAt` | 409 `STALE_UPDATE` | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass |
 | API-13 | API | Sec. 5.5 (Lab 3) | Full matrix-valid transition walk, now carrying `updatedAt` each step, ending in a gated RESOLVED | Each step succeeds in order; RESOLVED only after an Action Taken with no open follow-up exists | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass |
-| API-14 | API | AC-09, BR-16 | GET /api/dashboard/requester as Requester A vs. B | Each sees only their own metrics/Tickets | `server/tests/lab-04/requester-dashboard.api.test.ts` | Pending |
-| API-15 | API | BR-16 | GET /api/dashboard/requester as IT Staff | 403 | `server/tests/lab-04/requester-dashboard.api.test.ts` | Pending |
-| API-16 | API | AC-11 | GET /api/dashboard/requester for a Requester with zero Tickets | 200; every count 0, empty lists, not an error | `server/tests/lab-04/requester-dashboard.api.test.ts` | Pending |
-| API-17 | API | AC-10, BR-17 | GET /api/dashboard/staff: unassignedCount/myAssignedCount against known fixture data | Counts match a direct Prisma count for the same `where` | `server/tests/lab-04/staff-dashboard.api.test.ts` | Pending |
-| API-18 | API | BR-17 | GET /api/dashboard/staff as Requester | 403 | `server/tests/lab-04/staff-dashboard.api.test.ts` | Pending |
-| API-19 | API | FR-09 | GET /api/dashboard/staff as Administrator | 200; identical shape to IT Staff's response | `server/tests/lab-04/staff-dashboard.api.test.ts` | Pending |
+| API-14 | API | AC-09, BR-16 | GET /api/dashboard/requester as Requester A vs. B | Each sees only their own metrics/Tickets | `server/tests/lab-04/requester-dashboard.api.test.ts` | Pass |
+| API-15 | API | BR-16 | GET /api/dashboard/requester as IT Staff | 403 | `server/tests/lab-04/requester-dashboard.api.test.ts` | Pass |
+| API-16 | API | AC-11 | GET /api/dashboard/requester for a Requester with zero Tickets | 200; every count 0, empty lists, not an error | `server/tests/lab-04/requester-dashboard.api.test.ts` | Pass |
+| API-17 | API | AC-10, BR-17 | GET /api/dashboard/staff: unassignedCount/myAssignedCount against known fixture data | Counts match a direct Prisma count for the same `where` | `server/tests/lab-04/staff-dashboard.api.test.ts` | Pass |
+| API-18 | API | BR-17 | GET /api/dashboard/staff as Requester | 403 | `server/tests/lab-04/staff-dashboard.api.test.ts` | Pass |
+| API-19 | API | FR-09 | GET /api/dashboard/staff as Administrator | 200; identical shape to IT Staff's response | `server/tests/lab-04/staff-dashboard.api.test.ts` | Pass |
 | REGR-01 | Regression | AC-13 | Full Lab 2 + Lab 3 Supertest suites re-run unmodified on the Lab 4 branch | All existing assertions still pass | `server/tests/lab-02/*.test.ts`, `server/tests/lab-03/*.test.ts` | Pending |
 | UI-01 | UI | Sec. 5 (ui-spec) | Actions Taken list: populated and empty states | Correct copy/rows for each; "Follow-up needed" badge shown correctly | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
 | UI-02 | UI | AC-03 | Add Action Taken form: Follow-up Note field | Appears and becomes required only when Follow-Up Required is checked | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
 | UI-03 | UI | AC-07 | Edit Action Taken: a 409 response | Shows "changed since you opened it" and reloads current values, edit not lost silently | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
 | UI-04 | UI | AC-08 | Requester Ticket Detail Actions Taken panel | Read-only: no Add/Edit controls rendered | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
 | UI-05 | UI | Sec. 7 (ui-spec) | Status select when the Ticket is resolution-gated | RESOLVED option omitted; reappears once ungated | `client/tests/lab-04/TicketWorkflow.test.tsx` | Pass |
-| UI-06 | UI | AC-09, AC-12 | Requester Dashboard: metrics, recent list, attention list, drill-down links | Correct counts/rows rendered; links carry the right filter | `client/tests/lab-04/RequesterDashboard.test.tsx` | Pending |
-| UI-07 | UI | AC-10, AC-12 | Staff Dashboard: metrics, recent list, drill-down links | Correct counts/rows rendered; links carry the right filter | `client/tests/lab-04/StaffDashboard.test.tsx` | Pending |
-| UI-08 | UI | AC-11 | Both dashboards with all-zero data | Explicit "0" everywhere, no blank cards | `client/tests/lab-04/RequesterDashboard.test.tsx`, `StaffDashboard.test.tsx` | Pending |
-| UI-09 | UI | Sec. 4 (ui-spec) | Dashboard loading and failure states | Skeleton while loading; safe inline error + Retry on failure | `client/tests/lab-04/StaffDashboard.test.tsx` | Pending |
+| UI-06 | UI | AC-09, AC-12 | Requester Dashboard: metrics, recent list, attention list, drill-down links | Correct counts/rows rendered; links carry the right filter | `client/tests/lab-04/RequesterDashboard.test.tsx` | Pass |
+| UI-07 | UI | AC-10, AC-12 | Staff Dashboard: metrics, recent list, drill-down links | Correct counts/rows rendered; links carry the right filter | `client/tests/lab-04/StaffDashboard.test.tsx` | Pass |
+| UI-08 | UI | AC-11 | Both dashboards with all-zero data | Explicit "0" everywhere, no blank cards | `client/tests/lab-04/RequesterDashboard.test.tsx`, `StaffDashboard.test.tsx` | Pass |
+| UI-09 | UI | Sec. 4 (ui-spec) | Dashboard loading and failure states | Skeleton while loading; safe inline error + Retry on failure | `client/tests/lab-04/StaffDashboard.test.tsx` | Pass |
 | RESP-01 | Responsive | Sec. 11 (ui-spec) | Requester Dashboard, Staff Dashboard, Actions Taken panel at 1280/900/375px | No clipping, overlap, or horizontal scroll at any viewport | `artifacts/lab-04/screenshots/**/*.png` via `e2e/lab-04/dashboards.spec.ts` | Pending |
 | E2E-01 | E2E | AC-01, AC-03, AC-04, AC-06 | Full flow: create an Action Taken with follow-up, attempt RESOLVED (blocked), edit to clear follow-up, RESOLVED succeeds | Each step succeeds/fails exactly as specified end-to-end | `e2e/lab-04/actions-taken-flow.spec.ts` | Pending |
 | E2E-02 | E2E | AC-05 | Attempt RESOLVED on a Ticket with zero Actions Taken | Rejected with the resolution-blocked message shown in the UI | `e2e/lab-04/ticket-resolution.spec.ts` | Pending |

@@ -1,9 +1,26 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { fetchMyTickets, TicketListItem } from "../api/myTickets.js";
 import { fetchCategories, CategoryDto } from "../api/tickets.js";
 
 type LoadState = "loading" | "success" | "error";
+
+// Dashboard drill-down parity (FR-11): the status dropdown needs every
+// status a dashboard card can link to, plus the "active" aggregate the
+// "Open" card uses — represented here as one extra option so the whole
+// filter stays a single control.
+const STATUS_OPTIONS = [
+  { value: "", label: "All Statuses" },
+  { value: "__active", label: "Open (not Resolved/Closed/Cancelled)" },
+  { value: "NEW", label: "New" },
+  { value: "OPEN", label: "Open" },
+  { value: "IN_PROGRESS", label: "In Progress" },
+  { value: "WAITING_FOR_REQUESTER", label: "Waiting for Requester" },
+  { value: "RESOLVED", label: "Resolved" },
+  { value: "CLOSED", label: "Closed" },
+  { value: "REOPENED", label: "Reopened" },
+  { value: "CANCELLED", label: "Cancelled" },
+];
 
 const PRIORITY_STYLES: Record<string, { bg: string; color: string }> = {
   LOW: { bg: "#EAF6EF", color: "#1F2A24" },
@@ -24,6 +41,8 @@ function PriorityBadge({ value }: { value: string | null }) {
 }
 
 export default function MyTickets() {
+  const [searchParams] = useSearchParams();
+
   const [tickets, setTickets] = useState<TicketListItem[]>([]);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [totalItems, setTotalItems] = useState(0);
@@ -34,7 +53,12 @@ export default function MyTickets() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  // Dashboard drill-down (FR-11): a landing link carries its filter in the
+  // URL, read once on mount — "__active" is the "Open" card's aggregate.
+  const [statusFilter, setStatusFilter] = useState(() => {
+    if (searchParams.get("statusGroup") === "active") return "__active";
+    return searchParams.get("status") ?? "";
+  });
   const [sort, setSort] = useState("createdAt");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
 
@@ -50,7 +74,8 @@ export default function MyTickets() {
       search: search || undefined,
       categoryId: categoryFilter ? Number(categoryFilter) : undefined,
       requestedPriority: priorityFilter || undefined,
-      currentStatus: statusFilter || undefined,
+      currentStatus: statusFilter && statusFilter !== "__active" ? statusFilter : undefined,
+      statusGroup: statusFilter === "__active" ? "active" : undefined,
       sort,
       order,
       page,
@@ -143,8 +168,9 @@ export default function MyTickets() {
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
             >
-              <option value="">All Statuses</option>
-              <option value="NEW">New</option>
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
           </div>
         </div>
