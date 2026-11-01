@@ -11,6 +11,8 @@ import {
   AssignableUserDto,
   AccessDeniedError,
   NotFoundError,
+  ResolutionBlockedError,
+  StaleTicketError,
 } from "../api/staffTicketDetail.js";
 import { fetchComments, postComment, CommentDto } from "../api/comments.js";
 import {
@@ -147,10 +149,24 @@ export default function StaffTicketDetail() {
     setStatusSaving(true);
     setStatusError("");
     try {
-      await updateStatus(ticket.id, value);
+      await updateStatus(ticket.id, value, ticket.updatedAt);
       loadTicket();
     } catch (err) {
-      setStatusError(err instanceof Error ? err.message : "Unable to update status");
+      if (err instanceof ResolutionBlockedError) {
+        // ui-spec.md §7: name the blocking Action(s) and jump to the tab
+        // that shows them, in case the client-side hint was stale.
+        setStatusError(
+          err.blockingActions.length > 0
+            ? `Resolve is unavailable: ${err.blockingActions.map((a) => `"${a.description}"`).join(", ")} still needs follow-up.`
+            : err.message
+        );
+        setTab("actions");
+      } else if (err instanceof StaleTicketError) {
+        setStatusError(err.message);
+        loadTicket();
+      } else {
+        setStatusError(err instanceof Error ? err.message : "Unable to update status");
+      }
     } finally {
       setStatusSaving(false);
     }
@@ -314,6 +330,12 @@ export default function StaffTicketDetail() {
     return <div className="alert alert-danger">Unable to load this ticket. Please try again later.</div>;
   }
 
+  // ui-spec.md §7 — client-side hint only: omit RESOLVED whenever the
+  // currently-loaded Actions Taken can't support it yet. The backend's
+  // RESOLUTION_BLOCKED response (BR-11/BR-12) remains the real authority
+  // if this hint is ever stale.
+  const resolutionGated = actions.length === 0 || actions.some((a) => a.followUpRequired);
+
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-3">
@@ -406,9 +428,11 @@ export default function StaffTicketDetail() {
               disabled={statusSaving}
             >
               <option value="" disabled>{ticket.currentStatus}</option>
-              {ticket.validNextStatuses.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
+              {ticket.validNextStatuses
+                .filter((s) => s !== "RESOLVED" || !resolutionGated)
+                .map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
             </select>
             {statusError && <div className="text-danger small mt-1">{statusError}</div>}
           </div>

@@ -52,11 +52,13 @@ exists on this path).
 
 ### PATCH /api/staff/tickets/:id/status (extends Lab 3)
 Body now: `{ "currentStatus": "<status>", "updatedAt": "<ISO8601, the Ticket's updatedAt the client last read>" }`.
-- `200` → `{ "currentStatus" }` (unchanged shape).
-- `400` → not a recognized status value; `updatedAt` missing/invalid.
+- `200` → `{ "currentStatus", "validNextStatuses" }` (unchanged shape — Lab 3 already
+  returned `validNextStatuses` alongside `currentStatus`).
+- `400` → not a recognized status value, or not a permitted transition per the
+  matrix (plain `{ "error", "validNextStatuses" }` — Lab 3 behavior, unchanged);
+  `updatedAt` missing or not a valid timestamp.
 - `404` → Ticket does not exist.
-- `409` → one of three distinguishable cases, same HTTP status, different `error.code`:
-  - `"INVALID_TRANSITION"` — not permitted by the matrix (Lab 3 behavior, unchanged).
+- `409` → three distinguishable cases, same HTTP status, different `error.code`:
   - `"UNASSIGNED"` — target requires a Ticket Owner (Lab 3 BR-19, unchanged).
   - `"RESOLUTION_BLOCKED"` — target is `RESOLVED` and either zero Actions Taken exist or at least one has `followUpRequired = true` (Lab 4 BR-11/BR-12). Response includes `"blockingActions": [{ "id", "description" }]` for the open-follow-up case so the UI can link directly to the offending entry.
   - `"STALE_UPDATE"` — supplied `updatedAt` does not match the stored Ticket, same shape as the Action Taken case above.

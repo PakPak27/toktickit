@@ -771,11 +771,27 @@ app.patch("/api/staff/tickets/:id/status", ...requireStaffSession, async (req: R
   if (!ALL_STATUSES.includes(targetStatus)) {
     return res.status(400).json({ error: "Invalid status value" });
   }
+  if (typeof req.body?.updatedAt !== "string" || Number.isNaN(Date.parse(req.body.updatedAt))) {
+    return res.status(400).json({ error: "updatedAt is required and must be a valid timestamp" });
+  }
+  const expectedUpdatedAt = new Date(Date.parse(req.body.updatedAt));
 
   try {
-    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+    const prisma = getPrisma();
+    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
     if (!ticket) {
       return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    // BR-14 — an early, friendly rejection for the common case: the
+    // client's own view is stale. The atomic updateMany below is what
+    // actually closes the race (two requests built on the same copy).
+    if (ticket.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+      return res.status(409).json({
+        error: { code: "STALE_UPDATE", message: "This ticket changed since you opened it" },
+        currentStatus: ticket.currentStatus,
+        validNextStatuses: validNextStatuses(ticket.currentStatus),
+      });
     }
 
     if (!isValidTransition(ticket.currentStatus, targetStatus)) {
@@ -786,11 +802,36 @@ app.patch("/api/staff/tickets/:id/status", ...requireStaffSession, async (req: R
     }
     // BR-19: RESOLVED requires an assigned Ticket Owner.
     if (targetStatus === "RESOLVED" && !ticket.ticketOwnerId) {
-      return res.status(409).json({ error: "An unassigned Ticket cannot be resolved" });
+      return res.status(409).json({ error: { code: "UNASSIGNED", message: "An unassigned Ticket cannot be resolved" } });
+    }
+    // BR-11/BR-12 (resolution gate): RESOLVED needs at least one Action
+    // Taken and none with an open follow-up — checked independently of
+    // what the UI's own hint shows (ui-spec.md §7), so a stale hint or a
+    // direct API call can't bypass it.
+    if (targetStatus === "RESOLVED") {
+      const actions = await prisma.actionTaken.findMany({
+        where: { ticketId },
+        select: { id: true, description: true, followUpRequired: true },
+      });
+      const openFollowUps = actions.filter((a) => a.followUpRequired);
+      if (actions.length === 0 || openFollowUps.length > 0) {
+        return res.status(409).json({
+          error: {
+            code: "RESOLUTION_BLOCKED",
+            message:
+              actions.length === 0
+                ? "This ticket has no recorded Actions Taken yet"
+                : "This ticket has an open follow-up on at least one Action Taken",
+            blockingActions: openFollowUps.map((a) => ({ id: a.id, description: a.description })),
+          },
+        });
+      }
     }
 
-    const updated = await getPrisma().ticket.update({
-      where: { id: ticketId },
+    // BR-14 — the concurrency check and the write are one statement, so
+    // two requests built on the same copy cannot both succeed.
+    const { count } = await prisma.ticket.updateMany({
+      where: { id: ticketId, updatedAt: expectedUpdatedAt },
       data: {
         currentStatus: targetStatus as Prisma.TicketUpdateInput["currentStatus"],
         // BR-22: reopening clears a stale Requester confirmation.
@@ -800,6 +841,16 @@ app.patch("/api/staff/tickets/:id/status", ...requireStaffSession, async (req: R
       },
     });
 
+    if (count === 0) {
+      const current = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+      return res.status(409).json({
+        error: { code: "STALE_UPDATE", message: "This ticket changed since you opened it" },
+        currentStatus: current.currentStatus,
+        validNextStatuses: validNextStatuses(current.currentStatus),
+      });
+    }
+
+    const updated = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
     res.status(200).json({
       currentStatus: updated.currentStatus,
       validNextStatuses: validNextStatuses(updated.currentStatus),

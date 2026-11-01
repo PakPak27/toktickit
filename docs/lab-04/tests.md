@@ -23,11 +23,11 @@ unmodified), and E2E (Playwright, full flow against a running dev server).
 | API-06 | API | AC-07, BR-13 | PATCH with a stale `updatedAt` | 409 `STALE_UPDATE`; current record returned, not overwritten | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
 | API-07 | API | AC-08 | GET .../actions as the owning Requester | 200; read-only shape (no edit-only fields leaked) | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
 | API-08 | API | BR-08 | GET .../actions as a non-owning Requester | 403; no data | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
-| API-09 | API | AC-04, BR-11 | PATCH status to RESOLVED while an Action Taken has followUpRequired=true | 409 `RESOLUTION_BLOCKED`, `blockingActions` includes it | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pending |
-| API-10 | API | AC-05, BR-12 | PATCH status to RESOLVED with zero Actions Taken | 409 `RESOLUTION_BLOCKED` | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pending |
-| API-11 | API | AC-06 | Clear the open follow-up via PATCH .../actions, then retry RESOLVED | 200; status becomes RESOLVED | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pending |
-| API-12 | API | AC-07, BR-14 | PATCH status with a stale Ticket `updatedAt` | 409 `STALE_UPDATE` | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pending |
-| API-13 | API | Sec. 5.5 (Lab 3) | Full matrix-valid transition walk, now carrying `updatedAt` each step, ending in a gated RESOLVED | Each step succeeds in order; RESOLVED only after an Action Taken with no open follow-up exists | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pending |
+| API-09 | API | AC-04, BR-11 | PATCH status to RESOLVED while an Action Taken has followUpRequired=true | 409 `RESOLUTION_BLOCKED`, `blockingActions` includes it | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass |
+| API-10 | API | AC-05, BR-12 | PATCH status to RESOLVED with zero Actions Taken | 409 `RESOLUTION_BLOCKED` | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass |
+| API-11 | API | AC-06 | Clear the open follow-up via PATCH .../actions, then retry RESOLVED | 200; status becomes RESOLVED | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass |
+| API-12 | API | AC-07, BR-14 | PATCH status with a stale Ticket `updatedAt` | 409 `STALE_UPDATE` | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass |
+| API-13 | API | Sec. 5.5 (Lab 3) | Full matrix-valid transition walk, now carrying `updatedAt` each step, ending in a gated RESOLVED | Each step succeeds in order; RESOLVED only after an Action Taken with no open follow-up exists | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass |
 | API-14 | API | AC-09, BR-16 | GET /api/dashboard/requester as Requester A vs. B | Each sees only their own metrics/Tickets | `server/tests/lab-04/requester-dashboard.api.test.ts` | Pending |
 | API-15 | API | BR-16 | GET /api/dashboard/requester as IT Staff | 403 | `server/tests/lab-04/requester-dashboard.api.test.ts` | Pending |
 | API-16 | API | AC-11 | GET /api/dashboard/requester for a Requester with zero Tickets | 200; every count 0, empty lists, not an error | `server/tests/lab-04/requester-dashboard.api.test.ts` | Pending |
@@ -39,7 +39,7 @@ unmodified), and E2E (Playwright, full flow against a running dev server).
 | UI-02 | UI | AC-03 | Add Action Taken form: Follow-up Note field | Appears and becomes required only when Follow-Up Required is checked | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
 | UI-03 | UI | AC-07 | Edit Action Taken: a 409 response | Shows "changed since you opened it" and reloads current values, edit not lost silently | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
 | UI-04 | UI | AC-08 | Requester Ticket Detail Actions Taken panel | Read-only: no Add/Edit controls rendered | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
-| UI-05 | UI | Sec. 7 (ui-spec) | Status select when the Ticket is resolution-gated | RESOLVED option omitted; reappears once ungated | `client/tests/lab-04/TicketWorkflow.test.tsx` | Pending |
+| UI-05 | UI | Sec. 7 (ui-spec) | Status select when the Ticket is resolution-gated | RESOLVED option omitted; reappears once ungated | `client/tests/lab-04/TicketWorkflow.test.tsx` | Pass |
 | UI-06 | UI | AC-09, AC-12 | Requester Dashboard: metrics, recent list, attention list, drill-down links | Correct counts/rows rendered; links carry the right filter | `client/tests/lab-04/RequesterDashboard.test.tsx` | Pending |
 | UI-07 | UI | AC-10, AC-12 | Staff Dashboard: metrics, recent list, drill-down links | Correct counts/rows rendered; links carry the right filter | `client/tests/lab-04/StaffDashboard.test.tsx` | Pending |
 | UI-08 | UI | AC-11 | Both dashboards with all-zero data | Explicit "0" everywhere, no blank cards | `client/tests/lab-04/RequesterDashboard.test.tsx`, `StaffDashboard.test.tsx` | Pending |
