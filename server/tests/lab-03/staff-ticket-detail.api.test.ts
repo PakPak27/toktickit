@@ -103,19 +103,42 @@ describe("PATCH /api/staff/tickets/:id/priority", () => {
   });
 });
 
+// Lab 4 BR-14: every status PATCH now requires the Ticket's updatedAt the
+// client last read — these regression tests re-fetch it before each step
+// rather than hardcoding a value that goes stale after the first PATCH.
+async function currentUpdatedAt(id: number): Promise<string> {
+  const ticket = await getPrisma().ticket.findUniqueOrThrow({ where: { id } });
+  return ticket.updatedAt.toISOString();
+}
+
 describe("PATCH /api/staff/tickets/:id/status — transition matrix (AC-09, AC-10, Sec. 5.5)", () => {
   it("rejects NEW -> RESOLVED directly and returns validNextStatuses (AC-09)", async () => {
-    const res = await staffAgentA.patch(`/api/staff/tickets/${ticketId}/status`).send({ currentStatus: "RESOLVED" });
+    const res = await staffAgentA
+      .patch(`/api/staff/tickets/${ticketId}/status`)
+      .send({ currentStatus: "RESOLVED", updatedAt: await currentUpdatedAt(ticketId) });
     expect(res.status).toBe(400);
     expect(res.body.validNextStatuses).toEqual(["OPEN", "IN_PROGRESS", "CANCELLED"]);
   });
 
   it("rejects an invalid status value entirely", async () => {
-    const res = await staffAgentA.patch(`/api/staff/tickets/${ticketId}/status`).send({ currentStatus: "NOT_A_STATUS" });
+    const res = await staffAgentA
+      .patch(`/api/staff/tickets/${ticketId}/status`)
+      .send({ currentStatus: "NOT_A_STATUS", updatedAt: await currentUpdatedAt(ticketId) });
     expect(res.status).toBe(400);
   });
 
-  it("walks a full valid sequence, rejects RESOLVED while unassigned (AC-10), then resolves once owned (API-13)", async () => {
+  it("rejects a status change with a missing or stale updatedAt (BR-14)", async () => {
+    const missing = await staffAgentA.patch(`/api/staff/tickets/${ticketId}/status`).send({ currentStatus: "OPEN" });
+    expect(missing.status).toBe(400);
+
+    const stale = await staffAgentA
+      .patch(`/api/staff/tickets/${ticketId}/status`)
+      .send({ currentStatus: "OPEN", updatedAt: new Date(0).toISOString() });
+    expect(stale.status).toBe(409);
+    expect(stale.body.error.code).toBe("STALE_UPDATE");
+  });
+
+  it("walks a full valid sequence, rejects RESOLVED while unassigned (AC-10), then blocked/resolves once owned+worked (API-13)", async () => {
     // Fresh ticket for a clean sequence, independent of the owner tests above.
     const category = await getPrisma().category.findFirst();
     const relatedSystem = await getPrisma().relatedSystem.findFirst({ where: { isActive: true } });
@@ -128,26 +151,52 @@ describe("PATCH /api/staff/tickets/:id/status — transition matrix (AC-09, AC-1
     });
     const seqTicketId = createRes.body.id;
 
-    const toOpen = await staffAgentA.patch(`/api/staff/tickets/${seqTicketId}/status`).send({ currentStatus: "OPEN" });
+    const toOpen = await staffAgentA
+      .patch(`/api/staff/tickets/${seqTicketId}/status`)
+      .send({ currentStatus: "OPEN", updatedAt: await currentUpdatedAt(seqTicketId) });
     expect(toOpen.status).toBe(200);
 
     // BR-19: still unassigned — RESOLVED must be rejected even though OPEN -> RESOLVED is matrix-valid.
-    const resolveUnassigned = await staffAgentA.patch(`/api/staff/tickets/${seqTicketId}/status`).send({ currentStatus: "RESOLVED" });
+    const resolveUnassigned = await staffAgentA
+      .patch(`/api/staff/tickets/${seqTicketId}/status`)
+      .send({ currentStatus: "RESOLVED", updatedAt: await currentUpdatedAt(seqTicketId) });
     expect(resolveUnassigned.status).toBe(409);
+    expect(resolveUnassigned.body.error.code).toBe("UNASSIGNED");
 
     await staffAgentA.patch(`/api/staff/tickets/${seqTicketId}/owner`).send({ ticketOwnerId: staffAId });
 
-    const toInProgress = await staffAgentA.patch(`/api/staff/tickets/${seqTicketId}/status`).send({ currentStatus: "IN_PROGRESS" });
+    const toInProgress = await staffAgentA
+      .patch(`/api/staff/tickets/${seqTicketId}/status`)
+      .send({ currentStatus: "IN_PROGRESS", updatedAt: await currentUpdatedAt(seqTicketId) });
     expect(toInProgress.status).toBe(200);
 
-    const toResolved = await staffAgentA.patch(`/api/staff/tickets/${seqTicketId}/status`).send({ currentStatus: "RESOLVED" });
+    // Lab 4 BR-11/BR-12 resolution gate: owned but zero Actions Taken yet.
+    const resolveNoActions = await staffAgentA
+      .patch(`/api/staff/tickets/${seqTicketId}/status`)
+      .send({ currentStatus: "RESOLVED", updatedAt: await currentUpdatedAt(seqTicketId) });
+    expect(resolveNoActions.status).toBe(409);
+    expect(resolveNoActions.body.error.code).toBe("RESOLUTION_BLOCKED");
+
+    await staffAgentA.post(`/api/staff/tickets/${seqTicketId}/actions`).send({
+      description: "Reset the user's password.",
+      result: "Password reset and confirmed working.",
+      followUpRequired: false,
+    });
+
+    const toResolved = await staffAgentA
+      .patch(`/api/staff/tickets/${seqTicketId}/status`)
+      .send({ currentStatus: "RESOLVED", updatedAt: await currentUpdatedAt(seqTicketId) });
     expect(toResolved.status).toBe(200);
     expect(toResolved.body.validNextStatuses).toEqual(["CLOSED", "REOPENED"]);
 
-    const toClosed = await staffAgentA.patch(`/api/staff/tickets/${seqTicketId}/status`).send({ currentStatus: "CLOSED" });
+    const toClosed = await staffAgentA
+      .patch(`/api/staff/tickets/${seqTicketId}/status`)
+      .send({ currentStatus: "CLOSED", updatedAt: await currentUpdatedAt(seqTicketId) });
     expect(toClosed.status).toBe(200);
 
-    const toReopened = await staffAgentA.patch(`/api/staff/tickets/${seqTicketId}/status`).send({ currentStatus: "REOPENED" });
+    const toReopened = await staffAgentA
+      .patch(`/api/staff/tickets/${seqTicketId}/status`)
+      .send({ currentStatus: "REOPENED", updatedAt: await currentUpdatedAt(seqTicketId) });
     expect(toReopened.status).toBe(200);
   });
 
@@ -171,10 +220,24 @@ describe("PATCH /api/staff/tickets/:id/status — transition matrix (AC-09, AC-1
     expect(beforeReopen.body.requesterConfirmedResolvedAt).toBeTruthy();
 
     await staffAgentA.patch(`/api/staff/tickets/${reopenTicketId}/owner`).send({ ticketOwnerId: staffAId });
-    await staffAgentA.patch(`/api/staff/tickets/${reopenTicketId}/status`).send({ currentStatus: "OPEN" });
-    await staffAgentA.patch(`/api/staff/tickets/${reopenTicketId}/status`).send({ currentStatus: "RESOLVED" });
-    await staffAgentA.patch(`/api/staff/tickets/${reopenTicketId}/status`).send({ currentStatus: "CLOSED" });
-    await staffAgentA.patch(`/api/staff/tickets/${reopenTicketId}/status`).send({ currentStatus: "REOPENED" });
+    await staffAgentA
+      .patch(`/api/staff/tickets/${reopenTicketId}/status`)
+      .send({ currentStatus: "OPEN", updatedAt: await currentUpdatedAt(reopenTicketId) });
+    // Lab 4 BR-12: RESOLVED now needs a recorded Action Taken.
+    await staffAgentA.post(`/api/staff/tickets/${reopenTicketId}/actions`).send({
+      description: "Confirmed the issue and fixed it.",
+      result: "Resolved on the first visit.",
+      followUpRequired: false,
+    });
+    await staffAgentA
+      .patch(`/api/staff/tickets/${reopenTicketId}/status`)
+      .send({ currentStatus: "RESOLVED", updatedAt: await currentUpdatedAt(reopenTicketId) });
+    await staffAgentA
+      .patch(`/api/staff/tickets/${reopenTicketId}/status`)
+      .send({ currentStatus: "CLOSED", updatedAt: await currentUpdatedAt(reopenTicketId) });
+    await staffAgentA
+      .patch(`/api/staff/tickets/${reopenTicketId}/status`)
+      .send({ currentStatus: "REOPENED", updatedAt: await currentUpdatedAt(reopenTicketId) });
 
     const detail = await staffAgentA.get(`/api/staff/tickets/${reopenTicketId}`);
     expect(detail.body.requesterConfirmedResolved).toBe(false);
