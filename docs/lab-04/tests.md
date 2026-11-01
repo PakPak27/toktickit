@@ -35,10 +35,10 @@ unmodified), and E2E (Playwright, full flow against a running dev server).
 | API-18 | API | BR-17 | GET /api/dashboard/staff as Requester | 403 | `server/tests/lab-04/staff-dashboard.api.test.ts` | Pending |
 | API-19 | API | FR-09 | GET /api/dashboard/staff as Administrator | 200; identical shape to IT Staff's response | `server/tests/lab-04/staff-dashboard.api.test.ts` | Pending |
 | REGR-01 | Regression | AC-13 | Full Lab 2 + Lab 3 Supertest suites re-run unmodified on the Lab 4 branch | All existing assertions still pass | `server/tests/lab-02/*.test.ts`, `server/tests/lab-03/*.test.ts` | Pending |
-| UI-01 | UI | Sec. 5 (ui-spec) | Actions Taken list: populated and empty states | Correct copy/rows for each; "Follow-up needed" badge shown correctly | `client/tests/lab-04/ActionsTaken.test.tsx` | Pending |
-| UI-02 | UI | AC-03 | Add Action Taken form: Follow-up Note field | Appears and becomes required only when Follow-Up Required is checked | `client/tests/lab-04/ActionsTaken.test.tsx` | Pending |
-| UI-03 | UI | AC-07 | Edit Action Taken: a 409 response | Shows "changed since you opened it" and reloads current values, edit not lost silently | `client/tests/lab-04/ActionsTaken.test.tsx` | Pending |
-| UI-04 | UI | AC-08 | Requester Ticket Detail Actions Taken panel | Read-only: no Add/Edit controls rendered | `client/tests/lab-04/ActionsTaken.test.tsx` | Pending |
+| UI-01 | UI | Sec. 5 (ui-spec) | Actions Taken list: populated and empty states | Correct copy/rows for each; "Follow-up needed" badge shown correctly | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
+| UI-02 | UI | AC-03 | Add Action Taken form: Follow-up Note field | Appears and becomes required only when Follow-Up Required is checked | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
+| UI-03 | UI | AC-07 | Edit Action Taken: a 409 response | Shows "changed since you opened it" and reloads current values, edit not lost silently | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
+| UI-04 | UI | AC-08 | Requester Ticket Detail Actions Taken panel | Read-only: no Add/Edit controls rendered | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
 | UI-05 | UI | Sec. 7 (ui-spec) | Status select when the Ticket is resolution-gated | RESOLVED option omitted; reappears once ungated | `client/tests/lab-04/TicketWorkflow.test.tsx` | Pending |
 | UI-06 | UI | AC-09, AC-12 | Requester Dashboard: metrics, recent list, attention list, drill-down links | Correct counts/rows rendered; links carry the right filter | `client/tests/lab-04/RequesterDashboard.test.tsx` | Pending |
 | UI-07 | UI | AC-10, AC-12 | Staff Dashboard: metrics, recent list, drill-down links | Correct counts/rows rendered; links carry the right filter | `client/tests/lab-04/StaffDashboard.test.tsx` | Pending |
