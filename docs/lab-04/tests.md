@@ -15,14 +15,14 @@ unmodified), and E2E (Playwright, full flow against a running dev server).
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
 | UNIT-01 | Unit | BR-11/BR-12 | Resolution-gate pure helper | Given an Actions-Taken list, returns blocked/allowed and the blocking entries | `server/tests/lab-04/resolution-gate.unit.test.ts` | Pending |
-| API-01 | API | AC-01 | POST .../actions with valid data | 201; correct Ticket, correct `performedById` from session | `server/tests/lab-04/actions-taken.api.test.ts` | Pending |
-| API-02 | API | BR-05 | POST .../actions with empty/over-length description or result | 400; nothing created | `server/tests/lab-04/actions-taken.api.test.ts` | Pending |
-| API-03 | API | AC-03, BR-06 | POST .../actions with followUpRequired=true and no followUpNote | 400; nothing created | `server/tests/lab-04/actions-taken.api.test.ts` | Pending |
-| API-04 | API | AC-08, BR-08 | POST/PATCH .../actions as a Requester | 403; nothing created/changed | `server/tests/lab-04/actions-taken.api.test.ts` | Pending |
-| API-05 | API | AC-02, BR-02/BR-03 | PATCH an Action Taken created by a different IT Staff member | 200; `performedById` unchanged, `updatedAt` changes | `server/tests/lab-04/actions-taken.api.test.ts` | Pending |
-| API-06 | API | AC-07, BR-13 | PATCH with a stale `updatedAt` | 409 `STALE_UPDATE`; current record returned, not overwritten | `server/tests/lab-04/actions-taken.api.test.ts` | Pending |
-| API-07 | API | AC-08 | GET .../actions as the owning Requester | 200; read-only shape (no edit-only fields leaked) | `server/tests/lab-04/actions-taken.api.test.ts` | Pending |
-| API-08 | API | BR-08 | GET .../actions as a non-owning Requester | 403; no data | `server/tests/lab-04/actions-taken.api.test.ts` | Pending |
+| API-01 | API | AC-01 | POST .../actions with valid data | 201; correct Ticket, correct `performedById` from session | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
+| API-02 | API | BR-05 | POST .../actions with empty/over-length description or result | 400; nothing created | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
+| API-03 | API | AC-03, BR-06 | POST .../actions with followUpRequired=true and no followUpNote | 400; nothing created | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
+| API-04 | API | AC-08, BR-08 | POST/PATCH .../actions as a Requester | 403; nothing created/changed | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
+| API-05 | API | AC-02, BR-02/BR-03 | PATCH an Action Taken created by a different IT Staff member | 200; `performedById` unchanged, `updatedAt` changes | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
+| API-06 | API | AC-07, BR-13 | PATCH with a stale `updatedAt` | 409 `STALE_UPDATE`; current record returned, not overwritten | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
+| API-07 | API | AC-08 | GET .../actions as the owning Requester | 200; read-only shape (no edit-only fields leaked) | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
+| API-08 | API | BR-08 | GET .../actions as a non-owning Requester | 403; no data | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
 | API-09 | API | AC-04, BR-11 | PATCH status to RESOLVED while an Action Taken has followUpRequired=true | 409 `RESOLUTION_BLOCKED`, `blockingActions` includes it | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pending |
 | API-10 | API | AC-05, BR-12 | PATCH status to RESOLVED with zero Actions Taken | 409 `RESOLUTION_BLOCKED` | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pending |
 | API-11 | API | AC-06 | Clear the open follow-up via PATCH .../actions, then retry RESOLVED | 200; status becomes RESOLVED | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pending |
