@@ -108,12 +108,21 @@ the `main` release PR; re-confirmed after that merge.
 
 Picked up from my reviewer's non-blocking PR #56 feedback during this
 Issue: the resolution-gate read and the status write were two separate
-statements (an Action Taken added in between could slip past the gate, and
-adding one doesn't touch `Ticket.updatedAt` so the stale check wouldn't
-catch it either). Wrapped both in one `prisma.$transaction`, matching the
-pattern my partner's own equivalent endpoint already used, and added the
-true-concurrency test the same review asked for (`Promise.all` on two
-status changes with the same `updatedAt` — exactly one 200, one 409).
+statements, and wrapping both in one `prisma.$transaction` (my first attempt)
+turned out not to actually close the race — Postgres's default READ
+COMMITTED isolation takes no lock on rows a transaction only reads, so a
+concurrent Action Taken write could still commit in between and leave the
+gate's decision stale. Reviewer PR #58 caught this. The actual fix: every
+Action Taken write (`POST`/`PATCH .../actions`) now also bumps the Ticket's
+own `updatedAt` inside its own transaction, so the status route's existing
+optimistic-concurrency check (the `updateMany` keyed on `updatedAt`) sees it
+and rejects as stale instead of letting a now-invalid gate decision through.
+My partner's equivalent endpoint had the identical gap and is fixing it
+separately — this is not a case of matching an already-correct pattern.
+Added the true-concurrency test the same PR #56 review asked for
+(`Promise.all` on two status changes with the same `updatedAt` — exactly one
+200, one 409), plus a second one from PR #58's review demonstrating the
+Actions-Taken-vs-status race itself is closed.
 
 ## 7. Known Limitations or Deferred Tests
 - Performance/load testing of the dashboard queries at large data volumes
@@ -124,7 +133,9 @@ status changes with the same `updatedAt` — exactly one 200, one 409).
   sequential simulation, not true parallel-request timing like the Ticket
   status check now has — sufficient to prove the check exists and rejects
   correctly, not to characterize race-window size. Same fix (a
-  `Promise.all` test) would close this if it's ever revisited.
+  `Promise.all` test) would close this if it's ever revisited. (The
+  Actions-Taken-vs-status race specifically, which is a different check, now
+  has its own `Promise.all` test — see above.)
 - Reviewer PR #57 raised two product-judgment points deliberately left
   as-is rather than changed late without a spec update: the Staff
   dashboard's `unassignedCount`/`myAssignedCount` include finished

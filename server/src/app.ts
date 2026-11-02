@@ -789,9 +789,14 @@ app.patch("/api/staff/tickets/:id/status", ...requireStaffSession, async (req: R
     const prisma = getPrisma();
 
     // One transaction: the stale check, the resolution gate (which reads
-    // Actions Taken) and the write all happen together, so an Action Taken
-    // added between the gate check and the write can't slip past it (the
-    // gate read and the ticket write used to be two separate statements).
+    // Actions Taken) and the write all happen together — but under Postgres's
+    // default READ COMMITTED isolation that alone does not lock the Actions
+    // Taken rows this reads, so a concurrent Action Taken write could still
+    // commit in between and make the gate's decision stale. What actually
+    // closes that race: every Action Taken write (POST/PATCH .../actions)
+    // also bumps this Ticket's updatedAt, so the final updateMany's CAS below
+    // sees it and rejects as STALE instead of letting a now-invalid gate
+    // decision through (reviewer PR #58).
     const outcome = await prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findUnique({ where: { id: ticketId } });
       if (!ticket) return { kind: "NOT_FOUND" as const };
@@ -1070,27 +1075,40 @@ app.post("/api/staff/tickets/:id/actions", ...requireStaffSession, async (req: R
   }
 
   try {
-    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
-    if (!ticket) {
-      return res.status(404).json({ error: "Ticket not found" });
-    }
-
     const followUpRequired = body.followUpRequired === true;
-    const created = await getPrisma().actionTaken.create({
-      data: {
-        ticketId,
-        performedById: req.user!.id,
-        description: (body.description as string).trim(),
-        result: (body.result as string).trim(),
-        followUpRequired,
-        // BR-06: never persist a note alongside followUpRequired=false.
-        followUpNote: followUpRequired ? (body.followUpNote as string).trim() : null,
-        attachmentNotes:
-          typeof body.attachmentNotes === "string" && body.attachmentNotes.trim() ? body.attachmentNotes.trim() : null,
-      },
-      include: { performedBy: { select: { name: true } } },
+
+    // One transaction: the Action Taken write and the Ticket's updatedAt
+    // bump happen together. Action Taken writes never otherwise touch the
+    // Ticket row, so without this the status route's stale-update check and
+    // resolution gate have no way to see that the Actions Taken changed —
+    // reviewer PR #58 found that wrapping only the status route in its own
+    // transaction did not actually close that race, since Postgres's
+    // default READ COMMITTED isolation takes no lock on rows it reads.
+    const created = await getPrisma().$transaction(async (tx) => {
+      const ticket = await tx.ticket.findUnique({ where: { id: ticketId } });
+      if (!ticket) return null;
+
+      const row = await tx.actionTaken.create({
+        data: {
+          ticketId,
+          performedById: req.user!.id,
+          description: (body.description as string).trim(),
+          result: (body.result as string).trim(),
+          followUpRequired,
+          // BR-06: never persist a note alongside followUpRequired=false.
+          followUpNote: followUpRequired ? (body.followUpNote as string).trim() : null,
+          attachmentNotes:
+            typeof body.attachmentNotes === "string" && body.attachmentNotes.trim() ? body.attachmentNotes.trim() : null,
+        },
+        include: { performedBy: { select: { name: true } } },
+      });
+      await tx.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date() } });
+      return row;
     });
 
+    if (!created) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
     res.status(201).json(serializeActionTaken(created));
   } catch (err) {
     console.error("Failed to create action taken:", err);
@@ -1148,39 +1166,51 @@ app.patch(
           : existing.followUpNote
         : null;
 
-      const { count } = await getPrisma().actionTaken.updateMany({
-        where: { id: actionId, ticketId, updatedAt: new Date(Date.parse(body.updatedAt as string)) },
-        data: {
-          ...(body.description !== undefined ? { description: (body.description as string).trim() } : {}),
-          ...(body.result !== undefined ? { result: (body.result as string).trim() } : {}),
-          followUpRequired: nextFollowUpRequired,
-          followUpNote: nextFollowUpNote,
-          ...(body.attachmentNotes !== undefined
-            ? { attachmentNotes: (body.attachmentNotes as string)?.trim() || null }
-            : {}),
-        },
-      });
+      // One transaction: the Action Taken write and the Ticket's updatedAt
+      // bump happen together, for the same reason as the create route above
+      // — otherwise this edit (e.g. clearing a follow-up) would be invisible
+      // to the status route's stale check and resolution gate.
+      const outcome = await getPrisma().$transaction(async (tx) => {
+        const { count } = await tx.actionTaken.updateMany({
+          where: { id: actionId, ticketId, updatedAt: new Date(Date.parse(body.updatedAt as string)) },
+          data: {
+            ...(body.description !== undefined ? { description: (body.description as string).trim() } : {}),
+            ...(body.result !== undefined ? { result: (body.result as string).trim() } : {}),
+            followUpRequired: nextFollowUpRequired,
+            followUpNote: nextFollowUpNote,
+            ...(body.attachmentNotes !== undefined
+              ? { attachmentNotes: (body.attachmentNotes as string)?.trim() || null }
+              : {}),
+          },
+        });
 
-      if (count === 0) {
-        const current = await getPrisma().actionTaken.findUniqueOrThrow({
+        if (count === 0) {
+          const current = await tx.actionTaken.findUniqueOrThrow({
+            where: { id: actionId },
+            include: { performedBy: { select: { name: true } } },
+          });
+          return { kind: "STALE" as const, current };
+        }
+
+        await tx.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date() } });
+        const updated = await tx.actionTaken.findUniqueOrThrow({
           where: { id: actionId },
           include: { performedBy: { select: { name: true } } },
         });
+        return { kind: "OK" as const, updated };
+      });
+
+      if (outcome.kind === "STALE") {
         return res.status(409).json({
           error: {
             code: "STALE_UPDATE",
             message: "This entry changed since you opened it",
-            current: serializeActionTaken(current),
+            current: serializeActionTaken(outcome.current),
           },
         });
       }
 
-      const updated = await getPrisma().actionTaken.findUniqueOrThrow({
-        where: { id: actionId },
-        include: { performedBy: { select: { name: true } } },
-      });
-
-      res.status(200).json(serializeActionTaken(updated));
+      res.status(200).json(serializeActionTaken(outcome.updated));
     } catch (err) {
       console.error("Failed to update action taken:", err);
       res.status(500).json({ error: "Unable to update action taken" });

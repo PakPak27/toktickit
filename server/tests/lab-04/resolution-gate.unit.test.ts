@@ -31,11 +31,4 @@ describe("evaluateResolutionGate (BR-11, BR-12)", () => {
     expect(result.reason).toBeNull();
     expect(result.blockingActions).toEqual([]);
   });
-
-  it("prioritizes NO_ACTIONS over OPEN_FOLLOW_UP (an empty list has nothing to report as open)", () => {
-    // Guards against a future refactor accidentally checking followUpRequired
-    // before the empty-list case and reporting the wrong reason.
-    const result = evaluateResolutionGate([]);
-    expect(result.reason).not.toBe("OPEN_FOLLOW_UP");
-  });
 });

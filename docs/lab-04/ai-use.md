@@ -18,6 +18,7 @@ only after review from my partner (Sirazaza).
 | 6 | Asked to review several of my partner's PRs on his own repo in the same order he opened them | Found and reported (not fixed, since it's his code) one real reciprocal issue: his `parseId` helper had the identical missing-upper-bound gap he'd flagged on mine the round before, now duplicated across every Lab 4 route since he'd since extracted it into one shared file — he fixed it in his next commit. Later PRs in his stack (the resolution-gate transaction, the status history) were thorough enough that I had nothing left to flag beyond one cosmetic nit |
 | 7 | Asked for Final Hardening: close out the one still-`Pending` planned unit test, run the full regression suite, build the Lab 4 E2E/visual suite, update the README, and write these two documents | Extracted the resolution-gate logic (until then inline in the status route) into a standalone pure function so it could actually be unit-tested as the original test plan specified. Building the E2E suite surfaced three more pre-existing issues, none in Lab 4's own application code: Lab 3's E2E specs assumed login lands directly on a role's list screen, which Lab 4's new Dashboard-as-landing-page deliberately changed; the new "View Ticket Queue" dashboard button made an existing unqualified link query ambiguous; and two *different* Supertest files each left a throwaway Administrator/IT-Staff-role test user behind with no cleanup, which other files' unordered `findFirst` lookups for "the seeded" account could non-deterministically pick up instead — it broke unrelated regression files more than once in the same session before I traced it to its root cause and fixed it everywhere the same pattern appeared |
 | 8 | After each PR merged, asked to move straight to the next Issue only once told the previous one had actually been reviewed and merged — same discipline as every earlier lab | Never opened a new feature branch speculatively; always waited for explicit confirmation, even across a very long single working session covering all six Lab 4 Issues plus five rounds of cross-repo peer review |
+| 9 | Asked to act on my partner's `CHANGES_REQUESTED` review of Final Hardening (Issue #51) | His one blocking finding: my own fix for his earlier Issue #49 non-blocking note (wrapping the stale check, resolution gate, and status write in one `$transaction`) didn't actually close the race against a concurrent Action Taken write, because Postgres's default READ COMMITTED isolation takes no lock on rows a transaction only reads. Took his suggested fix instead — every Action Taken write now also bumps the Ticket's own `updatedAt`, so the status route's pre-existing optimistic-concurrency check catches it — and traced through the interleavings myself to confirm it, rather than applying the suggestion on faith |
 
 ## Reflection
 
@@ -51,7 +52,14 @@ reason BR-13/BR-14's optimistic-concurrency checks exist in the first place.
 Finally, reviewing my partner's independent implementation of the same
 labsheet was its own kind of regression test: his resolution-gate PR wrapped
 the stale-check, the gate, and the history write in one database
-transaction, closing a class of race I'd only handled with a standalone
-atomic `updateMany` on my own equivalent endpoint. Seeing a cleaner solution
-to a problem I'd already solved less elegantly was a more concrete lesson
-than any abstract advice about transactions would have been.
+transaction, which at the time looked like a cleaner solution to a problem
+I'd handled less elegantly with a standalone atomic `updateMany` on my own
+equivalent endpoint. Final Hardening's review from him corrected that
+impression, though — wrapping a read-gate-write sequence in one
+`$transaction` doesn't by itself stop a *different* transaction (an Action
+Taken write, touching a different table) from committing in between, since
+Postgres's default READ COMMITTED isolation takes no lock on rows a
+transaction only reads. He confirmed his own endpoint has the identical gap.
+The actual fix needed understanding the isolation level, not just reaching
+for `$transaction` as a reflex — a sharper and more useful lesson than the
+one I'd drawn the first time around.
