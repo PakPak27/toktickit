@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
@@ -14,9 +14,15 @@ const NEW_USER_EMAIL = `admin-test-${RUN_ID}@toktickit.com`;
 
 beforeAll(async () => {
   const prisma = getPrisma();
-  const admin = await prisma.user.findFirst({ where: { isActive: true, role: "ADMINISTRATOR" } });
-  const staff = await prisma.user.findFirst({ where: { isActive: true, role: "IT_STAFF" } });
-  const requester = await prisma.user.findFirst({ where: { isActive: true, role: "REQUESTER" } });
+  // orderBy id: this file's own "edits name/email/role/activation" test
+  // below changes a throwaway user's role to ADMINISTRATOR and never reverts
+  // it (the Lab 3 PATCH behavior that test is checking), so an unordered
+  // findFirst could pick that leftover row up instead of the real seeded
+  // user on a later run. The afterAll below removes it anyway, but ordering
+  // here keeps this file correct even if an older row ever slips through.
+  const admin = await prisma.user.findFirst({ where: { isActive: true, role: "ADMINISTRATOR" }, orderBy: { id: "asc" } });
+  const staff = await prisma.user.findFirst({ where: { isActive: true, role: "IT_STAFF" }, orderBy: { id: "asc" } });
+  const requester = await prisma.user.findFirst({ where: { isActive: true, role: "REQUESTER" }, orderBy: { id: "asc" } });
 
   if (!admin || !staff || !requester) {
     throw new Error("Seed data missing — run `npm run prisma:seed` before running tests.");
@@ -26,6 +32,15 @@ beforeAll(async () => {
   adminAgent = await loginAsAgent(admin.email);
   staffAgent = await loginAsAgent(staff.email);
   requesterAgent = await loginAsAgent(requester.email);
+});
+
+// This file is the only one that ever changes a test user's role to
+// ADMINISTRATOR (BR-32/BR-33 coverage above needs that); without this,
+// several other files' own unordered findFirst for "the" seeded
+// Administrator/IT Staff/Requester can non-deterministically pick up this
+// leftover account instead (observed firsthand during Lab 4 Issue #50).
+afterAll(async () => {
+  await getPrisma().user.deleteMany({ where: { email: NEW_USER_EMAIL } });
 });
 
 describe("GET /api/admin/users", () => {
