@@ -10,6 +10,7 @@ import {
   NotFoundError,
 } from "../api/ticketDetail.js";
 import { fetchComments, postComment, markAppearsResolved, CommentDto } from "../api/comments.js";
+import { fetchRequesterActionsTaken, ActionTakenDto } from "../api/actionsTaken.js";
 
 type LoadState = "loading" | "success" | "denied" | "notfound" | "error";
 
@@ -46,6 +47,9 @@ export default function TicketDetail() {
   const [markingResolved, setMarkingResolved] = useState(false);
   const [resolvedError, setResolvedError] = useState("");
 
+  const [actions, setActions] = useState<ActionTakenDto[]>([]);
+  const [actionsError, setActionsError] = useState("");
+
   function loadTicket() {
     if (!id) return;
     setLoadState("loading");
@@ -70,6 +74,10 @@ export default function TicketDetail() {
   useEffect(loadTicket, [id]);
   useEffect(() => {
     if (ticket) loadComments(ticket.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket?.id]);
+  useEffect(() => {
+    if (ticket) fetchRequesterActionsTaken(ticket.id).then(setActions).catch(() => setActionsError("Unable to load actions taken"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket?.id]);
 
@@ -358,6 +366,43 @@ export default function TicketDetail() {
             </ul>
           </>
         )}
+      </div>
+
+      {/* Actions Taken — read-only, ui-spec.md §6 */}
+      <div className="card border-0 shadow-sm p-4 mt-3">
+        <h2 className="h5 mb-3">{`Actions Taken (${actions.length})`}</h2>
+
+        {actionsError && <div className="text-danger small mb-2">{actionsError}</div>}
+        {actions.length === 0 && !actionsError && <p className="text-muted small">No actions recorded yet.</p>}
+
+        <ul className="list-unstyled d-flex flex-column gap-3 mb-0">
+          {actions.map((a) => (
+            <li key={a.id} className="p-2 rounded" style={{ background: "#F5F7F6" }}>
+              <div className="d-flex justify-content-between align-items-baseline">
+                <strong>{a.performedByName}</strong>
+                <span className="small text-muted">{new Date(a.createdAt).toLocaleString()}</span>
+              </div>
+              <div className="small text-muted">Description</div>
+              <div>{a.description}</div>
+              <div className="small text-muted mt-1">Result</div>
+              <div>{a.result}</div>
+              <div className="d-flex align-items-center gap-2 mt-2">
+                {a.followUpRequired && (
+                  <span className="badge" style={{ background: "#FFF3DC", color: "#B26A00" }}>
+                    Follow-up needed
+                  </span>
+                )}
+                {a.attachmentNotes && <span className="small text-muted">📎 {a.attachmentNotes}</span>}
+              </div>
+              {a.followUpRequired && a.followUpNote && (
+                <div className="small mt-1">
+                  <span className="text-muted">Follow-up Note: </span>
+                  {a.followUpNote}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
       </div>
 
       {/* Public Comments — ui-spec.md §5 */}

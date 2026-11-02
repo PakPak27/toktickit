@@ -11,12 +11,21 @@ import {
   AssignableUserDto,
   AccessDeniedError,
   NotFoundError,
+  ResolutionBlockedError,
+  StaleTicketError,
 } from "../api/staffTicketDetail.js";
 import { fetchComments, postComment, CommentDto } from "../api/comments.js";
+import {
+  fetchStaffActionsTaken,
+  createActionTaken,
+  updateActionTaken,
+  ActionTakenDto,
+  StaleActionError,
+} from "../api/actionsTaken.js";
 import { useAuth } from "../context/AuthContext.js";
 
 type LoadState = "loading" | "success" | "denied" | "notfound" | "error";
-type Tab = "comments" | "notes" | "attachments";
+type Tab = "actions" | "comments" | "notes" | "attachments";
 
 const ROLE_LABELS: Record<string, string> = {
   REQUESTER: "Requester",
@@ -56,6 +65,29 @@ export default function StaffTicketDetail() {
   const [newNote, setNewNote] = useState("");
   const [postingNote, setPostingNote] = useState(false);
 
+  const [actions, setActions] = useState<ActionTakenDto[]>([]);
+  const [actionsError, setActionsError] = useState("");
+
+  const [showAddAction, setShowAddAction] = useState(false);
+  const [newDescription, setNewDescription] = useState("");
+  const [newResult, setNewResult] = useState("");
+  const [newFollowUpRequired, setNewFollowUpRequired] = useState(false);
+  const [newFollowUpNote, setNewFollowUpNote] = useState("");
+  const [newAttachmentNotes, setNewAttachmentNotes] = useState("");
+  const [addActionError, setAddActionError] = useState("");
+  const [addingAction, setAddingAction] = useState(false);
+
+  const [editingActionId, setEditingActionId] = useState<number | null>(null);
+  const [editDescription, setEditDescription] = useState("");
+  const [editResult, setEditResult] = useState("");
+  const [editFollowUpRequired, setEditFollowUpRequired] = useState(false);
+  const [editFollowUpNote, setEditFollowUpNote] = useState("");
+  const [editAttachmentNotes, setEditAttachmentNotes] = useState("");
+  const [editBaseUpdatedAt, setEditBaseUpdatedAt] = useState("");
+  const [editActionError, setEditActionError] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editConflict, setEditConflict] = useState<ActionTakenDto | null>(null);
+
   function loadTicket() {
     if (!id) return;
     setLoadState("loading");
@@ -77,6 +109,10 @@ export default function StaffTicketDetail() {
   }, []);
   useEffect(() => {
     if (ticket) fetchComments(ticket.id).then(setComments).catch(() => setCommentsError("Unable to load comments"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket?.id]);
+  useEffect(() => {
+    if (ticket) fetchStaffActionsTaken(ticket.id).then(setActions).catch(() => setActionsError("Unable to load actions taken"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket?.id]);
 
@@ -113,10 +149,24 @@ export default function StaffTicketDetail() {
     setStatusSaving(true);
     setStatusError("");
     try {
-      await updateStatus(ticket.id, value);
+      await updateStatus(ticket.id, value, ticket.updatedAt);
       loadTicket();
     } catch (err) {
-      setStatusError(err instanceof Error ? err.message : "Unable to update status");
+      if (err instanceof ResolutionBlockedError) {
+        // ui-spec.md §7: name the blocking Action(s) and jump to the tab
+        // that shows them, in case the client-side hint was stale.
+        setStatusError(
+          err.blockingActions.length > 0
+            ? `Resolve is unavailable: ${err.blockingActions.map((a) => `"${a.description}"`).join(", ")} still needs follow-up.`
+            : err.message
+        );
+        setTab("actions");
+      } else if (err instanceof StaleTicketError) {
+        setStatusError(err.message);
+        loadTicket();
+      } else {
+        setStatusError(err instanceof Error ? err.message : "Unable to update status");
+      }
     } finally {
       setStatusSaving(false);
     }
@@ -154,6 +204,112 @@ export default function StaffTicketDetail() {
     }
   }
 
+  async function handleAddAction(e: React.FormEvent) {
+    e.preventDefault();
+    if (!ticket) return;
+    setAddActionError("");
+    if (!newDescription.trim() || !newResult.trim()) {
+      setAddActionError("Description and Result are both required");
+      return;
+    }
+    if (newFollowUpRequired && !newFollowUpNote.trim()) {
+      setAddActionError("A follow-up note is required when follow-up is needed");
+      return;
+    }
+    setAddingAction(true);
+    try {
+      const created = await createActionTaken(ticket.id, {
+        description: newDescription.trim(),
+        result: newResult.trim(),
+        followUpRequired: newFollowUpRequired,
+        followUpNote: newFollowUpRequired ? newFollowUpNote.trim() : undefined,
+        attachmentNotes: newAttachmentNotes.trim() || undefined,
+      });
+      setActions((prev) => [created, ...prev]);
+      setNewDescription("");
+      setNewResult("");
+      setNewFollowUpRequired(false);
+      setNewFollowUpNote("");
+      setNewAttachmentNotes("");
+      setShowAddAction(false);
+    } catch (err) {
+      setAddActionError(err instanceof Error ? err.message : "Unable to record this action");
+    } finally {
+      setAddingAction(false);
+    }
+  }
+
+  function startEditAction(action: ActionTakenDto) {
+    setEditingActionId(action.id);
+    setEditDescription(action.description);
+    setEditResult(action.result);
+    setEditFollowUpRequired(action.followUpRequired);
+    setEditFollowUpNote(action.followUpNote ?? "");
+    setEditAttachmentNotes(action.attachmentNotes ?? "");
+    setEditBaseUpdatedAt(action.updatedAt);
+    setEditActionError("");
+    setEditConflict(null);
+  }
+
+  function cancelEditAction() {
+    setEditingActionId(null);
+    setEditActionError("");
+    setEditConflict(null);
+  }
+
+  // ui-spec.md §5: a 409 reloads the current values into the form rather
+  // than silently discarding the edit — the user decides what to do next.
+  function reloadEditFromConflict() {
+    if (!editConflict) return;
+    setEditDescription(editConflict.description);
+    setEditResult(editConflict.result);
+    setEditFollowUpRequired(editConflict.followUpRequired);
+    setEditFollowUpNote(editConflict.followUpNote ?? "");
+    setEditAttachmentNotes(editConflict.attachmentNotes ?? "");
+    setEditBaseUpdatedAt(editConflict.updatedAt);
+    setActions((prev) => prev.map((a) => (a.id === editConflict.id ? editConflict : a)));
+    setEditConflict(null);
+  }
+
+  async function handleSaveEditAction(e: React.FormEvent) {
+    e.preventDefault();
+    if (!ticket || editingActionId === null) return;
+    setEditActionError("");
+    if (!editDescription.trim() || !editResult.trim()) {
+      setEditActionError("Description and Result are both required");
+      return;
+    }
+    if (editFollowUpRequired && !editFollowUpNote.trim()) {
+      setEditActionError("A follow-up note is required when follow-up is needed");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const updated = await updateActionTaken(ticket.id, editingActionId, {
+        description: editDescription.trim(),
+        result: editResult.trim(),
+        followUpRequired: editFollowUpRequired,
+        followUpNote: editFollowUpRequired ? editFollowUpNote.trim() : undefined,
+        // Always sent (never `|| undefined`) so clearing the field on edit
+        // actually clears it — the PATCH handler only touches a field when
+        // it's present in the body, and the server already turns "" into
+        // null.
+        attachmentNotes: editAttachmentNotes.trim(),
+        updatedAt: editBaseUpdatedAt,
+      });
+      setActions((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+      setEditingActionId(null);
+    } catch (err) {
+      if (err instanceof StaleActionError) {
+        setEditConflict(err.current);
+      } else {
+        setEditActionError(err instanceof Error ? err.message : "Unable to save this action");
+      }
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   if (loadState === "loading") return <p className="text-muted">Loading…</p>;
 
   if (loadState === "denied") {
@@ -173,6 +329,12 @@ export default function StaffTicketDetail() {
   if (loadState === "error" || !ticket) {
     return <div className="alert alert-danger">Unable to load this ticket. Please try again later.</div>;
   }
+
+  // ui-spec.md §7 — client-side hint only: omit RESOLVED whenever the
+  // currently-loaded Actions Taken can't support it yet. The backend's
+  // RESOLUTION_BLOCKED response (BR-11/BR-12) remains the real authority
+  // if this hint is ever stale.
+  const resolutionGated = actions.length === 0 || actions.some((a) => a.followUpRequired);
 
   return (
     <div>
@@ -266,9 +428,11 @@ export default function StaffTicketDetail() {
               disabled={statusSaving}
             >
               <option value="" disabled>{ticket.currentStatus}</option>
-              {ticket.validNextStatuses.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
+              {ticket.validNextStatuses
+                .filter((s) => s !== "RESOLVED" || !resolutionGated)
+                .map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
             </select>
             {statusError && <div className="text-danger small mt-1">{statusError}</div>}
           </div>
@@ -304,6 +468,14 @@ export default function StaffTicketDetail() {
         <ul className="nav nav-tabs mb-3">
           <li className="nav-item">
             <button
+              className={`nav-link ${tab === "actions" ? "active" : ""}`}
+              onClick={() => setTab("actions")}
+            >
+              {`Actions Taken (${actions.length})`}
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
               className={`nav-link ${tab === "comments" ? "active" : ""}`}
               onClick={() => setTab("comments")}
               aria-label="Public Comments, visible to Requester"
@@ -326,6 +498,251 @@ export default function StaffTicketDetail() {
             </button>
           </li>
         </ul>
+
+        {tab === "actions" && (
+          <div>
+            {actionsError && <div className="text-danger small mb-2">{actionsError}</div>}
+            {actions.length === 0 && <p className="text-muted small">No actions recorded yet.</p>}
+
+            <ul className="list-unstyled d-flex flex-column gap-3 mb-3">
+              {actions.map((a) =>
+                editingActionId === a.id ? (
+                  <li key={a.id} className="p-3 rounded border" style={{ background: "#F5F7F6" }}>
+                    {editConflict && (
+                      <div className="alert alert-warning py-2 px-3 mb-3" role="alert">
+                        This entry changed since you opened it. Your changes were not saved.{" "}
+                        <button type="button" className="btn btn-link btn-sm p-0" onClick={reloadEditFromConflict}>
+                          Reload
+                        </button>
+                      </div>
+                    )}
+                    <form onSubmit={handleSaveEditAction}>
+                      <div className="mb-2">
+                        <label htmlFor={`editDescription-${a.id}`} className="form-label small text-muted mb-1">
+                          Description
+                        </label>
+                        <textarea
+                          id={`editDescription-${a.id}`}
+                          className="form-control"
+                          rows={2}
+                          maxLength={2000}
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.target.value)}
+                          disabled={savingEdit}
+                        />
+                      </div>
+                      <div className="mb-2">
+                        <label htmlFor={`editResult-${a.id}`} className="form-label small text-muted mb-1">
+                          Result
+                        </label>
+                        <textarea
+                          id={`editResult-${a.id}`}
+                          className="form-control"
+                          rows={2}
+                          maxLength={2000}
+                          value={editResult}
+                          onChange={(e) => setEditResult(e.target.value)}
+                          disabled={savingEdit}
+                        />
+                      </div>
+                      <div className="mb-2 form-check">
+                        <input
+                          id={`editFollowUpRequired-${a.id}`}
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={editFollowUpRequired}
+                          onChange={(e) => setEditFollowUpRequired(e.target.checked)}
+                          disabled={savingEdit}
+                        />
+                        <label htmlFor={`editFollowUpRequired-${a.id}`} className="form-check-label small">
+                          Follow-Up Required
+                        </label>
+                      </div>
+                      {editFollowUpRequired && (
+                        <div className="mb-2">
+                          <label htmlFor={`editFollowUpNote-${a.id}`} className="form-label small text-muted mb-1">
+                            Follow-up Note
+                          </label>
+                          <textarea
+                            id={`editFollowUpNote-${a.id}`}
+                            className="form-control"
+                            rows={2}
+                            maxLength={1000}
+                            value={editFollowUpNote}
+                            onChange={(e) => setEditFollowUpNote(e.target.value)}
+                            disabled={savingEdit}
+                          />
+                        </div>
+                      )}
+                      <div className="mb-3">
+                        <label htmlFor={`editAttachmentNotes-${a.id}`} className="form-label small text-muted mb-1">
+                          Attachment Notes
+                        </label>
+                        <input
+                          id={`editAttachmentNotes-${a.id}`}
+                          type="text"
+                          className="form-control"
+                          maxLength={500}
+                          value={editAttachmentNotes}
+                          onChange={(e) => setEditAttachmentNotes(e.target.value)}
+                          disabled={savingEdit}
+                        />
+                      </div>
+                      {editActionError && <div className="text-danger small mb-2">{editActionError}</div>}
+                      <div className="d-flex gap-2">
+                        <button type="submit" className="btn btn-success btn-sm" disabled={savingEdit}>
+                          {savingEdit ? "Saving…" : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary btn-sm"
+                          onClick={cancelEditAction}
+                          disabled={savingEdit}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </li>
+                ) : (
+                  <li key={a.id} className="p-2 rounded" style={{ background: "#F5F7F6" }}>
+                    <div className="d-flex justify-content-between align-items-baseline">
+                      <strong>{a.performedByName}</strong>
+                      <span className="small text-muted">{new Date(a.createdAt).toLocaleString()}</span>
+                    </div>
+                    <div className="small text-muted">Description</div>
+                    <div>{a.description}</div>
+                    <div className="small text-muted mt-1">Result</div>
+                    <div title={a.result}>{a.result}</div>
+                    <div className="d-flex align-items-center gap-2 mt-2">
+                      {a.followUpRequired && (
+                        <span className="badge" style={{ background: "#FFF3DC", color: "#B26A00" }}>
+                          Follow-up needed
+                        </span>
+                      )}
+                      {a.attachmentNotes && <span className="small text-muted">📎 {a.attachmentNotes}</span>}
+                    </div>
+                    {a.followUpRequired && a.followUpNote && (
+                      <div className="small mt-1">
+                        <span className="text-muted">Follow-up Note: </span>
+                        {a.followUpNote}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-link btn-sm p-0 mt-2"
+                      onClick={() => startEditAction(a)}
+                    >
+                      Edit
+                    </button>
+                  </li>
+                )
+              )}
+            </ul>
+
+            {showAddAction ? (
+              <form onSubmit={handleAddAction} className="p-3 rounded border" style={{ background: "#F5F7F6" }}>
+                <div className="mb-2">
+                  <label htmlFor="newActionDescription" className="form-label small text-muted mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    id="newActionDescription"
+                    className="form-control"
+                    rows={2}
+                    maxLength={2000}
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    disabled={addingAction}
+                  />
+                </div>
+                <div className="mb-2">
+                  <label htmlFor="newActionResult" className="form-label small text-muted mb-1">
+                    Result
+                  </label>
+                  <textarea
+                    id="newActionResult"
+                    className="form-control"
+                    rows={2}
+                    maxLength={2000}
+                    value={newResult}
+                    onChange={(e) => setNewResult(e.target.value)}
+                    disabled={addingAction}
+                  />
+                </div>
+                <div className="mb-2 form-check">
+                  <input
+                    id="newActionFollowUpRequired"
+                    type="checkbox"
+                    className="form-check-input"
+                    checked={newFollowUpRequired}
+                    onChange={(e) => setNewFollowUpRequired(e.target.checked)}
+                    disabled={addingAction}
+                  />
+                  <label htmlFor="newActionFollowUpRequired" className="form-check-label small">
+                    Follow-Up Required
+                  </label>
+                </div>
+                {newFollowUpRequired && (
+                  <div className="mb-2">
+                    <label htmlFor="newActionFollowUpNote" className="form-label small text-muted mb-1">
+                      Follow-up Note
+                    </label>
+                    <textarea
+                      id="newActionFollowUpNote"
+                      className="form-control"
+                      rows={2}
+                      maxLength={1000}
+                      value={newFollowUpNote}
+                      onChange={(e) => setNewFollowUpNote(e.target.value)}
+                      disabled={addingAction}
+                    />
+                  </div>
+                )}
+                <div className="mb-3">
+                  <label htmlFor="newActionAttachmentNotes" className="form-label small text-muted mb-1">
+                    Attachment Notes
+                  </label>
+                  <input
+                    id="newActionAttachmentNotes"
+                    type="text"
+                    className="form-control"
+                    maxLength={500}
+                    value={newAttachmentNotes}
+                    onChange={(e) => setNewAttachmentNotes(e.target.value)}
+                    disabled={addingAction}
+                  />
+                </div>
+                {addActionError && <div className="text-danger small mb-2">{addActionError}</div>}
+                <div className="d-flex gap-2">
+                  <button type="submit" className="btn btn-success btn-sm" disabled={addingAction}>
+                    {addingAction ? "Saving…" : "Add Action Taken"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    onClick={() => {
+                      setShowAddAction(false);
+                      setAddActionError("");
+                      setNewDescription("");
+                      setNewResult("");
+                      setNewFollowUpRequired(false);
+                      setNewFollowUpNote("");
+                      setNewAttachmentNotes("");
+                    }}
+                    disabled={addingAction}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button type="button" className="btn btn-success btn-sm" onClick={() => setShowAddAction(true)}>
+                Add Action Taken
+              </button>
+            )}
+          </div>
+        )}
 
         {tab === "comments" && (
           <div>

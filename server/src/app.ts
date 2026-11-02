@@ -4,7 +4,7 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { getPrisma } from "./prisma.js";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, TicketStatus } from "@prisma/client";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -39,6 +39,10 @@ const KNOWN_PRIORITY_VALUES: string[] = ["LOW", "MEDIUM", "HIGH"];
 // Issue #33 introduced the full workflow enum — reuse the same list the
 // status-transition matrix validates against instead of a stale copy.
 const KNOWN_STATUS_VALUES: string[] = ALL_STATUSES;
+// Lab 4 — the Requester Dashboard's "Open" metric and its My Tickets
+// drill-down (BR-16/FR-11) both need the same "active" definition, so the
+// count the Dashboard shows always matches the list the link opens.
+const ACTIVE_STATUSES = ALL_STATUSES.filter((s) => !["RESOLVED", "CLOSED", "CANCELLED"].includes(s)) as TicketStatus[];
 
 export const app = express();
 
@@ -182,6 +186,10 @@ app.get("/api/tickets", ...requireRequesterSession, async (req: Request, res: Re
     }
     if (req.query.currentStatus && KNOWN_STATUS_VALUES.includes(String(req.query.currentStatus))) {
       where.currentStatus = String(req.query.currentStatus);
+    } else if (req.query.statusGroup === "active") {
+      // Dashboard drill-down (FR-11): ignored when currentStatus is also
+      // given, per api-spec.md.
+      where.currentStatus = { in: ACTIVE_STATUSES };
     }
 
     const [data, totalItems] = await Promise.all([
@@ -771,11 +779,27 @@ app.patch("/api/staff/tickets/:id/status", ...requireStaffSession, async (req: R
   if (!ALL_STATUSES.includes(targetStatus)) {
     return res.status(400).json({ error: "Invalid status value" });
   }
+  if (typeof req.body?.updatedAt !== "string" || Number.isNaN(Date.parse(req.body.updatedAt))) {
+    return res.status(400).json({ error: "updatedAt is required and must be a valid timestamp" });
+  }
+  const expectedUpdatedAt = new Date(Date.parse(req.body.updatedAt));
 
   try {
-    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+    const prisma = getPrisma();
+    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
     if (!ticket) {
       return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    // BR-14 — an early, friendly rejection for the common case: the
+    // client's own view is stale. The atomic updateMany below is what
+    // actually closes the race (two requests built on the same copy).
+    if (ticket.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+      return res.status(409).json({
+        error: { code: "STALE_UPDATE", message: "This ticket changed since you opened it" },
+        currentStatus: ticket.currentStatus,
+        validNextStatuses: validNextStatuses(ticket.currentStatus),
+      });
     }
 
     if (!isValidTransition(ticket.currentStatus, targetStatus)) {
@@ -786,11 +810,36 @@ app.patch("/api/staff/tickets/:id/status", ...requireStaffSession, async (req: R
     }
     // BR-19: RESOLVED requires an assigned Ticket Owner.
     if (targetStatus === "RESOLVED" && !ticket.ticketOwnerId) {
-      return res.status(409).json({ error: "An unassigned Ticket cannot be resolved" });
+      return res.status(409).json({ error: { code: "UNASSIGNED", message: "An unassigned Ticket cannot be resolved" } });
+    }
+    // BR-11/BR-12 (resolution gate): RESOLVED needs at least one Action
+    // Taken and none with an open follow-up — checked independently of
+    // what the UI's own hint shows (ui-spec.md §7), so a stale hint or a
+    // direct API call can't bypass it.
+    if (targetStatus === "RESOLVED") {
+      const actions = await prisma.actionTaken.findMany({
+        where: { ticketId },
+        select: { id: true, description: true, followUpRequired: true },
+      });
+      const openFollowUps = actions.filter((a) => a.followUpRequired);
+      if (actions.length === 0 || openFollowUps.length > 0) {
+        return res.status(409).json({
+          error: {
+            code: "RESOLUTION_BLOCKED",
+            message:
+              actions.length === 0
+                ? "This ticket has no recorded Actions Taken yet"
+                : "This ticket has an open follow-up on at least one Action Taken",
+            blockingActions: openFollowUps.map((a) => ({ id: a.id, description: a.description })),
+          },
+        });
+      }
     }
 
-    const updated = await getPrisma().ticket.update({
-      where: { id: ticketId },
+    // BR-14 — the concurrency check and the write are one statement, so
+    // two requests built on the same copy cannot both succeed.
+    const { count } = await prisma.ticket.updateMany({
+      where: { id: ticketId, updatedAt: expectedUpdatedAt },
       data: {
         currentStatus: targetStatus as Prisma.TicketUpdateInput["currentStatus"],
         // BR-22: reopening clears a stale Requester confirmation.
@@ -800,6 +849,16 @@ app.patch("/api/staff/tickets/:id/status", ...requireStaffSession, async (req: R
       },
     });
 
+    if (count === 0) {
+      const current = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+      return res.status(409).json({
+        error: { code: "STALE_UPDATE", message: "This ticket changed since you opened it" },
+        currentStatus: current.currentStatus,
+        validNextStatuses: validNextStatuses(current.currentStatus),
+      });
+    }
+
+    const updated = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
     res.status(200).json({
       currentStatus: updated.currentStatus,
       validNextStatuses: validNextStatuses(updated.currentStatus),
@@ -878,6 +937,343 @@ app.get("/api/staff/tickets/:id/notes", ...requireStaffSession, async (req: Requ
   } catch (err) {
     console.error("Failed to fetch internal notes:", err);
     res.status(500).json({ error: "Unable to load internal notes" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Lab 4 Issue #47 — Actions Taken (specification.md BR-01 to BR-09)
+// ---------------------------------------------------------------------------
+function serializeActionTaken(a: {
+  id: number;
+  ticketId: number;
+  performedById: number;
+  description: string;
+  result: string;
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  performedBy: { name: string };
+}) {
+  return {
+    id: a.id,
+    ticketId: a.ticketId,
+    performedById: a.performedById,
+    performedByName: a.performedBy.name,
+    description: a.description,
+    result: a.result,
+    followUpRequired: a.followUpRequired,
+    followUpNote: a.followUpNote,
+    attachmentNotes: a.attachmentNotes,
+    createdAt: a.createdAt,
+    updatedAt: a.updatedAt,
+  };
+}
+
+// BR-05/BR-06/BR-07: shared validation for both create and edit. `existing`
+// supplies the effective followUpRequired/followUpNote on a partial PATCH
+// that only sends one of the two, so that pair is always validated together
+// against what the row will actually end up with, not just what was sent.
+function validateActionTakenInput(
+  body: Record<string, unknown>,
+  opts: { partial: boolean; existing?: { followUpRequired: boolean; followUpNote: string | null } }
+): string | null {
+  const has = (key: string) => !opts.partial || body[key] !== undefined;
+
+  if (has("description")) {
+    const d = typeof body.description === "string" ? body.description.trim() : "";
+    if (!d || d.length > 2000) return "Description is required (1-2000 characters)";
+  }
+  if (has("result")) {
+    const r = typeof body.result === "string" ? body.result.trim() : "";
+    if (!r || r.length > 2000) return "Result is required (1-2000 characters)";
+  }
+  if (has("followUpRequired") && typeof body.followUpRequired !== "boolean") {
+    return "followUpRequired must be true or false";
+  }
+  // BR-06: Follow-up Note is required (1-1000 chars) exactly when
+  // followUpRequired is true — checked whenever either field is present so
+  // a partial PATCH can't leave the pair in an inconsistent state. Checked
+  // against the *effective* values (falling back to `existing`), not just
+  // whichever of the two fields this particular request happened to send.
+  if (has("followUpRequired") || has("followUpNote")) {
+    const required =
+      body.followUpRequired !== undefined ? body.followUpRequired === true : opts.existing?.followUpRequired ?? false;
+    const note =
+      typeof body.followUpNote === "string" ? body.followUpNote.trim() : opts.existing?.followUpNote ?? "";
+    if (required && (!note || note.length > 1000)) {
+      return "A follow-up note (1-1000 characters) is required when follow-up is needed";
+    }
+  }
+  if (has("attachmentNotes")) {
+    const notes = body.attachmentNotes;
+    if (notes !== undefined && notes !== null && notes !== "") {
+      if (typeof notes !== "string" || notes.length > 500) {
+        return "Attachment notes must be 500 characters or fewer";
+      }
+    }
+  }
+  return null;
+}
+
+app.get("/api/staff/tickets/:id/actions", ...requireStaffSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  if (!Number.isInteger(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+
+  try {
+    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    const actions = await getPrisma().actionTaken.findMany({
+      where: { ticketId },
+      orderBy: { createdAt: "desc" },
+      include: { performedBy: { select: { name: true } } },
+    });
+
+    res.status(200).json(actions.map(serializeActionTaken));
+  } catch (err) {
+    console.error("Failed to fetch actions taken:", err);
+    res.status(500).json({ error: "Unable to load actions taken" });
+  }
+});
+
+app.post("/api/staff/tickets/:id/actions", ...requireStaffSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  if (!Number.isInteger(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const validationError = validateActionTakenInput(body, { partial: false });
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
+
+  try {
+    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    const followUpRequired = body.followUpRequired === true;
+    const created = await getPrisma().actionTaken.create({
+      data: {
+        ticketId,
+        performedById: req.user!.id,
+        description: (body.description as string).trim(),
+        result: (body.result as string).trim(),
+        followUpRequired,
+        // BR-06: never persist a note alongside followUpRequired=false.
+        followUpNote: followUpRequired ? (body.followUpNote as string).trim() : null,
+        attachmentNotes:
+          typeof body.attachmentNotes === "string" && body.attachmentNotes.trim() ? body.attachmentNotes.trim() : null,
+      },
+      include: { performedBy: { select: { name: true } } },
+    });
+
+    res.status(201).json(serializeActionTaken(created));
+  } catch (err) {
+    console.error("Failed to create action taken:", err);
+    res.status(500).json({ error: "Unable to create action taken" });
+  }
+});
+
+app.patch(
+  "/api/staff/tickets/:id/actions/:actionId",
+  ...requireStaffSession,
+  async (req: Request, res: Response) => {
+    const ticketId = Number(req.params.id);
+    const actionId = Number(req.params.actionId);
+    if (!Number.isInteger(ticketId) || !Number.isInteger(actionId)) {
+      return res.status(404).json({ error: "Action taken not found" });
+    }
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const hasAnyField = ["description", "result", "followUpRequired", "followUpNote", "attachmentNotes"].some(
+      (k) => body[k] !== undefined
+    );
+    if (!hasAnyField) {
+      return res.status(400).json({ error: "Supply at least one field to update" });
+    }
+    if (typeof body.updatedAt !== "string" || Number.isNaN(Date.parse(body.updatedAt))) {
+      return res.status(400).json({ error: "updatedAt is required and must be a valid timestamp" });
+    }
+
+    try {
+      const existing = await getPrisma().actionTaken.findUnique({ where: { id: actionId } });
+      if (!existing || existing.ticketId !== ticketId) {
+        return res.status(404).json({ error: "Action taken not found" });
+      }
+
+      // BR-06: validated against the *effective* followUpRequired/followUpNote
+      // (falling back to `existing`), so a PATCH that only sends one of the
+      // two fields can't leave the pair in an inconsistent state.
+      const validationError = validateActionTakenInput(body, { partial: true, existing });
+      if (validationError) {
+        return res.status(400).json({ error: validationError });
+      }
+
+      // BR-13: optimistic concurrency — atomic compare-and-swap on updatedAt
+      // so two PATCHes built on the same stale read can't both pass a
+      // check-then-write race and have the second silently overwrite the
+      // first; only one `updateMany` can match and update the row.
+      const nextFollowUpRequired =
+        body.followUpRequired !== undefined ? (body.followUpRequired as boolean) : existing.followUpRequired;
+      // BR-06: derive the note from the *effective* flag, not just whether
+      // followUpNote was supplied, so flipping followUpRequired to false
+      // always clears a leftover note even if followUpNote wasn't sent.
+      const nextFollowUpNote = nextFollowUpRequired
+        ? typeof body.followUpNote === "string"
+          ? body.followUpNote.trim()
+          : existing.followUpNote
+        : null;
+
+      const { count } = await getPrisma().actionTaken.updateMany({
+        where: { id: actionId, ticketId, updatedAt: new Date(Date.parse(body.updatedAt as string)) },
+        data: {
+          ...(body.description !== undefined ? { description: (body.description as string).trim() } : {}),
+          ...(body.result !== undefined ? { result: (body.result as string).trim() } : {}),
+          followUpRequired: nextFollowUpRequired,
+          followUpNote: nextFollowUpNote,
+          ...(body.attachmentNotes !== undefined
+            ? { attachmentNotes: (body.attachmentNotes as string)?.trim() || null }
+            : {}),
+        },
+      });
+
+      if (count === 0) {
+        const current = await getPrisma().actionTaken.findUniqueOrThrow({
+          where: { id: actionId },
+          include: { performedBy: { select: { name: true } } },
+        });
+        return res.status(409).json({
+          error: {
+            code: "STALE_UPDATE",
+            message: "This entry changed since you opened it",
+            current: serializeActionTaken(current),
+          },
+        });
+      }
+
+      const updated = await getPrisma().actionTaken.findUniqueOrThrow({
+        where: { id: actionId },
+        include: { performedBy: { select: { name: true } } },
+      });
+
+      res.status(200).json(serializeActionTaken(updated));
+    } catch (err) {
+      console.error("Failed to update action taken:", err);
+      res.status(500).json({ error: "Unable to update action taken" });
+    }
+  }
+);
+
+app.get("/api/tickets/:id/actions", ...requireAuthenticatedSession, async (req: Request, res: Response) => {
+  const ticketId = Number(req.params.id);
+  if (!Number.isInteger(ticketId)) {
+    return res.status(404).json({ error: "Ticket not found" });
+  }
+
+  try {
+    const ticket = await loadTicketForCommentAccess(req, res, ticketId);
+    if (!ticket) return;
+
+    const actions = await getPrisma().actionTaken.findMany({
+      where: { ticketId },
+      orderBy: { createdAt: "desc" },
+      include: { performedBy: { select: { name: true } } },
+    });
+
+    res.status(200).json(actions.map(serializeActionTaken));
+  } catch (err) {
+    console.error("Failed to fetch actions taken:", err);
+    res.status(500).json({ error: "Unable to load actions taken" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Lab 4 — Dashboards (specification.md FR-08 to FR-11, BR-16 to BR-20)
+// ---------------------------------------------------------------------------
+const RECENT_TICKET_SELECT = {
+  id: true,
+  ticketNumber: true,
+  summary: true,
+  currentStatus: true,
+  updatedAt: true,
+} as const;
+
+app.get("/api/dashboard/requester", ...requireRequesterSession, async (req: Request, res: Response) => {
+  try {
+    const prisma = getPrisma();
+    const requesterId = req.user!.id;
+
+    const [openCount, inProgressCount, waitingForRequesterCount, resolvedCount, closedCount, recentTickets, attentionTickets] =
+      await Promise.all([
+        prisma.ticket.count({ where: { requesterId, currentStatus: { in: ACTIVE_STATUSES } } }),
+        prisma.ticket.count({ where: { requesterId, currentStatus: "IN_PROGRESS" } }),
+        prisma.ticket.count({ where: { requesterId, currentStatus: "WAITING_FOR_REQUESTER" } }),
+        prisma.ticket.count({ where: { requesterId, currentStatus: "RESOLVED" } }),
+        prisma.ticket.count({ where: { requesterId, currentStatus: "CLOSED" } }),
+        prisma.ticket.findMany({
+          where: { requesterId },
+          orderBy: { updatedAt: "desc" },
+          take: 5,
+          select: RECENT_TICKET_SELECT,
+        }),
+        prisma.ticket.findMany({
+          where: { requesterId, currentStatus: "WAITING_FOR_REQUESTER" },
+          orderBy: { updatedAt: "desc" },
+          take: 5,
+          select: RECENT_TICKET_SELECT,
+        }),
+      ]);
+
+    res.status(200).json({
+      metrics: { openCount, inProgressCount, waitingForRequesterCount, resolvedCount, closedCount },
+      recentTickets,
+      attentionTickets,
+    });
+  } catch (err) {
+    console.error("Failed to load Requester dashboard:", err);
+    res.status(500).json({ error: "Unable to load your dashboard" });
+  }
+});
+
+app.get("/api/dashboard/staff", ...requireStaffSession, async (req: Request, res: Response) => {
+  try {
+    const prisma = getPrisma();
+    const me = req.user!.id;
+
+    const [newCount, openCount, inProgressCount, waitingForRequesterCount, unassignedCount, myAssignedCount, recentTicketRows] =
+      await Promise.all([
+        prisma.ticket.count({ where: { currentStatus: "NEW" } }),
+        prisma.ticket.count({ where: { currentStatus: "OPEN" } }),
+        prisma.ticket.count({ where: { currentStatus: "IN_PROGRESS" } }),
+        prisma.ticket.count({ where: { currentStatus: "WAITING_FOR_REQUESTER" } }),
+        prisma.ticket.count({ where: { ticketOwnerId: null } }),
+        prisma.ticket.count({ where: { ticketOwnerId: me } }),
+        prisma.ticket.findMany({
+          orderBy: { updatedAt: "desc" },
+          take: 5,
+          select: { ...RECENT_TICKET_SELECT, ticketOwner: { select: { name: true } } },
+        }),
+      ]);
+
+    res.status(200).json({
+      metrics: { newCount, openCount, inProgressCount, waitingForRequesterCount, unassignedCount, myAssignedCount },
+      recentTickets: recentTicketRows.map(({ ticketOwner, ...t }) => ({
+        ...t,
+        ticketOwnerName: ticketOwner?.name ?? null,
+      })),
+    });
+  } catch (err) {
+    console.error("Failed to load Staff dashboard:", err);
+    res.status(500).json({ error: "Unable to load your dashboard" });
   }
 });
 

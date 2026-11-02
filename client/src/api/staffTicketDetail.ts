@@ -45,6 +45,25 @@ export interface StaffTicketDetailDto {
 export class AccessDeniedError extends Error {}
 export class NotFoundError extends Error {}
 
+export interface BlockingActionDto {
+  id: number;
+  description: string;
+}
+
+// Lab 4 BR-11/BR-12: the backend's resolution gate — carries which Actions
+// Taken (if any) are blocking RESOLVED so the UI can point at them, in case
+// the client-side hint (ui-spec.md §7) was stale or bypassed.
+export class ResolutionBlockedError extends Error {
+  blockingActions: BlockingActionDto[];
+  constructor(message: string, blockingActions: BlockingActionDto[]) {
+    super(message);
+    this.blockingActions = blockingActions;
+  }
+}
+
+// Lab 4 BR-14: the Ticket changed since the client's copy was read.
+export class StaleTicketError extends Error {}
+
 export interface AssignableUserDto {
   id: number;
   name: string;
@@ -88,8 +107,44 @@ export function updateItPriority(ticketId: number, itPriority: "LOW" | "MEDIUM" 
   return patchJson(`/api/staff/tickets/${ticketId}/priority`, { itPriority });
 }
 
-export function updateStatus(ticketId: number, currentStatus: string) {
-  return patchJson(`/api/staff/tickets/${ticketId}/status`, { currentStatus });
+export async function updateStatus(
+  ticketId: number,
+  currentStatus: string,
+  updatedAt: string
+): Promise<{ currentStatus: string; validNextStatuses: string[] }> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/status`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentStatus, updatedAt }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const error = (body as { error?: unknown } | null)?.error;
+    // 409 cases carry a structured { code, message, ... } error; 400/404
+    // cases (unchanged from Lab 3) carry a plain string.
+    if (error && typeof error === "object") {
+      const { code, message, blockingActions } = error as {
+        code?: string;
+        message?: string;
+        blockingActions?: BlockingActionDto[];
+      };
+      if (code === "RESOLUTION_BLOCKED") {
+        throw new ResolutionBlockedError(message ?? "This ticket cannot be resolved yet", blockingActions ?? []);
+      }
+      if (code === "STALE_UPDATE") {
+        throw new StaleTicketError(message ?? "This ticket changed since you opened it");
+      }
+      throw new Error(message ?? "Unable to update status");
+    }
+    const err = new Error(typeof error === "string" ? error : "Unable to update status") as Error & {
+      validNextStatuses?: string[];
+    };
+    const validNextStatuses = (body as { validNextStatuses?: string[] } | null)?.validNextStatuses;
+    if (validNextStatuses) err.validNextStatuses = validNextStatuses;
+    throw err;
+  }
+  return res.json();
 }
 
 export async function postInternalNote(ticketId: number, content: string): Promise<InternalNoteDto> {
