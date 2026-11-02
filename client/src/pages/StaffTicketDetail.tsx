@@ -226,6 +226,11 @@ export default function StaffTicketDetail() {
         attachmentNotes: newAttachmentNotes.trim() || undefined,
       });
       setActions((prev) => [created, ...prev]);
+      // Recording an Action Taken bumps the Ticket's own updatedAt on the
+      // server (so the resolution gate can't be bypassed by a stale status
+      // request) — reload it so the status control's own updatedAt stays
+      // current for the user's next status change.
+      loadTicket();
       setNewDescription("");
       setNewResult("");
       setNewFollowUpRequired(false);
@@ -298,6 +303,9 @@ export default function StaffTicketDetail() {
         updatedAt: editBaseUpdatedAt,
       });
       setActions((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+      // Same reason as handleAddAction above — this edit also bumped the
+      // Ticket's updatedAt on the server.
+      loadTicket();
       setEditingActionId(null);
     } catch (err) {
       if (err instanceof StaleActionError) {

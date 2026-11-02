@@ -114,14 +114,14 @@ test.describe("Part 6 - IT Staff Ticket Queue UI", () => {
   test("06-01 realistic queue data - desktop", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await loginAsUI(page, "kevin.patel@toktickit.com");
-    await page.getByRole("link", { name: "Ticket Queue" }).click();
+    await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
     await page.waitForURL("**/staff/queue");
     await page.screenshot({ path: `${DIR}/06-01-queue-desktop.png`, fullPage: true });
   });
 
   test("06-02 search narrows results", async ({ page }) => {
     await loginAsUI(page, "kevin.patel@toktickit.com");
-    await page.getByRole("link", { name: "Ticket Queue" }).click();
+    await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
     await page.waitForURL("**/staff/queue");
     await page.fill('input[placeholder*="Search by ticket number"]', "TKT-2026-000001");
     await page.screenshot({ path: `${DIR}/06-02-queue-search.png`, fullPage: true });
@@ -129,7 +129,7 @@ test.describe("Part 6 - IT Staff Ticket Queue UI", () => {
 
   test("06-03 filters applied", async ({ page }) => {
     await loginAsUI(page, "kevin.patel@toktickit.com");
-    await page.getByRole("link", { name: "Ticket Queue" }).click();
+    await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
     await page.waitForURL("**/staff/queue");
     // Filter select order on the Queue: 0=Category, 1=IT Priority, 2=Status, 3=Ownership.
     await page.locator("select").nth(1).selectOption("HIGH"); // IT Priority filter
@@ -139,7 +139,7 @@ test.describe("Part 6 - IT Staff Ticket Queue UI", () => {
 
   test("06-04 sorted by IT Priority", async ({ page }) => {
     await loginAsUI(page, "kevin.patel@toktickit.com");
-    await page.getByRole("link", { name: "Ticket Queue" }).click();
+    await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
     await page.waitForURL("**/staff/queue");
     // The sortable <th> carries an explicit role="button", overriding its
     // implicit columnheader role, so it must be located as a button.
@@ -149,7 +149,7 @@ test.describe("Part 6 - IT Staff Ticket Queue UI", () => {
 
   test("06-05 pagination controls", async ({ page }) => {
     await loginAsUI(page, "kevin.patel@toktickit.com");
-    await page.getByRole("link", { name: "Ticket Queue" }).click();
+    await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
     await page.waitForURL("**/staff/queue");
     await page.getByText("Next", { exact: true }).click();
     await page.screenshot({ path: `${DIR}/06-05-queue-pagination.png`, fullPage: true });
@@ -157,7 +157,7 @@ test.describe("Part 6 - IT Staff Ticket Queue UI", () => {
 
   test("06-06 no-results state", async ({ page }) => {
     await loginAsUI(page, "kevin.patel@toktickit.com");
-    await page.getByRole("link", { name: "Ticket Queue" }).click();
+    await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
     await page.waitForURL("**/staff/queue");
     await page.fill('input[placeholder*="Search by ticket number"]', "zzz-no-such-ticket-zzz");
     await expect(page.getByText("No tickets match your filters.")).toBeVisible();
@@ -167,7 +167,7 @@ test.describe("Part 6 - IT Staff Ticket Queue UI", () => {
   test("06-07 mobile card layout", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await loginAsUI(page, "kevin.patel@toktickit.com");
-    await page.getByRole("link", { name: "Ticket Queue" }).click();
+    await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
     await page.waitForURL("**/staff/queue");
     await page.screenshot({ path: `${DIR}/06-07-queue-mobile.png`, fullPage: true });
   });
@@ -215,7 +215,7 @@ test.describe("Part 7 - IT Staff Ticket Detail UI", () => {
 
   test("07-01 ticket detail unclaimed", async ({ page }) => {
     await loginAsUI(page, "kevin.patel@toktickit.com");
-    await page.getByRole("link", { name: "Ticket Queue" }).click();
+    await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
     await page.waitForURL("**/staff/queue");
     await page.fill('input[placeholder*="Search by ticket number"]', marker);
     await page.locator("table tbody tr a", { hasText: "TKT-" }).first().click();
@@ -225,7 +225,7 @@ test.describe("Part 7 - IT Staff Ticket Detail UI", () => {
 
   test("07-02 to 07-06 claim, priority, status, comment, note", async ({ page }) => {
     await loginAsUI(page, "kevin.patel@toktickit.com");
-    await page.getByRole("link", { name: "Ticket Queue" }).click();
+    await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
     await page.waitForURL("**/staff/queue");
     await page.fill('input[placeholder*="Search by ticket number"]', marker);
     await page.locator("table tbody tr a", { hasText: "TKT-" }).first().click();
@@ -274,7 +274,7 @@ test.describe("Part 7 - IT Staff Ticket Detail UI", () => {
     await logoutViaUI(page);
 
     await loginAsUI(page, "kevin.patel@toktickit.com");
-    await page.getByRole("link", { name: "Ticket Queue" }).click();
+    await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
     await page.waitForURL("**/staff/queue");
     await page.fill('input[placeholder*="Search by ticket number"]', marker);
     await page.locator("table tbody tr a", { hasText: "TKT-" }).first().click();

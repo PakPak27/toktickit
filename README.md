@@ -1,8 +1,9 @@
 # TokTickIT
 
 TokTickIT (ตอกติ๊กกิต) — IT Service Desk application.
-CPE334 Lab 1-3: Full-stack ticketing app with authentication and role-based
-access (React → Express → Prisma → PostgreSQL).
+CPE334 Lab 1-4: Full-stack ticketing app with authentication, role-based
+access, a recorded work log per Ticket, and role dashboards
+(React → Express → Prisma → PostgreSQL).
 
 ## Tech Stack
 
@@ -38,9 +39,11 @@ npm run prisma:migrate
 npm run prisma:seed
 \`\`\`
 
-**Lab 3 seed credentials (local development only, never real secrets):**
-every seeded account (Requester, IT Staff, and Administrator) uses the
-password \`ChangeMe123!\` and must change it at first login. See
+**Seed credentials (local development only, never real secrets):** every
+seeded account (Requester, IT Staff, and Administrator) uses the password
+\`ChangeMe123!\` and must change it at first login. The Lab 4 seed also adds
+Actions Taken (zero, one, and several per Ticket, including at least one
+open follow-up) across a spread of Ticket statuses. See
 \`server/prisma/seed.ts\` for the full list of seeded accounts and roles.
 
 ### 3. Frontend setup
@@ -66,10 +69,17 @@ npx playwright install chromium
 
 **Backend** (from \`server/\`): \`npm run test\`
 **Frontend** (from \`client/\`): \`npm run test\`
-**E2E / visual** (from repo root, with both servers running): \`npx playwright test e2e/lab-03\`
+**E2E / visual** (from repo root, with both servers running):
+\`\`\`bash
+npx playwright test e2e/lab-04
+npx playwright test e2e/lab-03 --grep-invert "report-evidence"   # regression
+\`\`\`
 (\`e2e/lab-02\` was removed in Lab 3 — it depended on the Development
 Requester selector, which no longer exists; its coverage is superseded by
-\`e2e/lab-03/requester-regression.spec.ts\`.)
+\`e2e/lab-03/requester-regression.spec.ts\`. \`e2e/lab-03/report-evidence.spec.ts\`
+is a one-shot evidence-capture spec for the Lab 3 submission report, not
+part of the regression suite — run it on its own, since one of its tests
+deliberately leaves a fixture account's password mid-reset.)
 
 ## Features
 
@@ -98,20 +108,34 @@ self-deactivation, and last-active-Administrator safety rules enforced
 server-side. Full responsive/visual QA and E2E coverage complete (21/21
 passing); see `docs/lab-03/tests.md` for the final test report.
 
+**Lab 4:** Actions Taken — a dated work log per Ticket (description, result,
+performer from the session, optional follow-up) that any IT Staff/
+Administrator can add or edit, shown read-only to the owning Requester. A
+Ticket can only move to Resolved once the backend confirms at least one
+Action Taken exists and none has an open follow-up (enforced server-side
+regardless of what the UI shows); Action Taken edits and Ticket status
+changes both reject a stale `updatedAt` instead of silently overwriting a
+newer change. Every role now lands on a Dashboard first — Requester (own
+Ticket counts, a "Needs Your Attention" list, recent Tickets) or IT Staff/
+Administrator (queue-wide counts, recent Tickets) — with every metric card
+linking into My Tickets/the Ticket Queue pre-filtered to match. Full
+responsive/visual QA and E2E coverage complete; see `docs/lab-04/tests.md`
+for the final test report.
+
 ## Project Structure
 
 \`\`\`
 toktickit/
 ├── client/              # React + Vite frontend
-│   └── tests/lab-01/, lab-02/, lab-03/   # Vitest + Testing Library
+│   └── tests/lab-01/, lab-02/, lab-03/, lab-04/   # Vitest + Testing Library
 ├── server/              # Express + Prisma backend
 │   ├── prisma/          # Prisma schema, migrations, seed
 │   ├── src/              # Express app source
-│   └── tests/lab-01/, lab-02/, lab-03/   # Supertest API tests
-├── e2e/lab-03/           # Playwright E2E and visual tests (supersedes e2e/lab-02)
-├── artifacts/lab-03/screenshots/  # Responsive screenshots (desktop/tablet/mobile)
-├── docs/lab-01/, lab-02/, lab-03/  # specification.md, tests.md, ui-spec.md,
-│                          # api-spec.md, ai-use.md, reviewer.md
+│   └── tests/lab-01/, lab-02/, lab-03/, lab-04/   # Supertest API tests
+├── e2e/lab-03/, lab-04/  # Playwright E2E and visual tests (supersedes e2e/lab-02)
+├── artifacts/lab-03/, lab-04/screenshots/  # Responsive screenshots (desktop/tablet/mobile)
+├── docs/lab-01/, lab-02/, lab-03/, lab-04/  # specification.md, tests.md,
+│                          # ui-spec.md, api-spec.md, ai-use.md, reviewer.md
 ├── .gitignore
 └── README.md
 \`\`\`
