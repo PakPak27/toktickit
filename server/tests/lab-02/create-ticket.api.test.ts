@@ -11,7 +11,7 @@ let agent: ReturnType<typeof request.agent>;
 
 beforeAll(async () => {
   const prisma = getPrisma();
-  const requester = await prisma.user.findFirst({ where: { isActive: true, role: "REQUESTER" } });
+  const requester = await prisma.user.findFirst({ where: { isActive: true, role: "REQUESTER" }, orderBy: { id: "asc" } });
   const category = await prisma.category.findFirst();
   const relatedSystem = await prisma.relatedSystem.findFirst({ where: { isActive: true } });
 

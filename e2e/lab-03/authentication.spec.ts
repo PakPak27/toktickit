@@ -5,8 +5,9 @@ import { loginAsUI, logoutViaUI, SEED_PASSWORD } from "./helpers.js";
 test("logs in with a mustChangePassword seed account, completes the first-login change, and reaches the authenticated shell", async ({ page }) => {
   await loginAsUI(page, "david.lee@example.com");
 
-  // Requester lands on My Tickets — the role-specific home from "/".
-  await expect(page).toHaveURL(/\/tickets$/);
+  // Lab 4 — every role now lands on the Dashboard from "/" (ui-spec.md §1),
+  // not their own list screen directly.
+  await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByText("David Lee")).toBeVisible();
 });
 
@@ -31,7 +32,7 @@ test("rejects login for an inactive account with the identical generic message (
 // E2E-02 / AC-19
 test("logs out and blocks direct navigation back into a protected screen", async ({ page }) => {
   await loginAsUI(page, "sarah.johnson@example.com");
-  await expect(page).toHaveURL(/\/tickets$/);
+  await expect(page).toHaveURL(/\/dashboard$/);
 
   await logoutViaUI(page);
   await expect(page).toHaveURL(/\/login$/);

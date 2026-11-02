@@ -44,6 +44,9 @@ test("Requester A's ticket is not visible to Requester B, now scoped by the auth
   await logoutViaUI(page);
 
   await loginAsUI(page, "sarah.johnson@example.com");
+  // Lab 4 — login now lands on the Dashboard, not My Tickets directly.
+  await page.getByRole("link", { name: "My Tickets", exact: true }).click();
+  await page.waitForURL("**/tickets");
   await page.fill('input[placeholder="Search by ticket number or summary…"]', marker);
   await expect(page.getByText("No tickets match your filters.")).toBeVisible();
 });

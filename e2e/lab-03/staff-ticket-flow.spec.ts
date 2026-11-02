@@ -22,7 +22,7 @@ test("full IT Staff flow: claim, IT Priority, status transition, Public Comment,
 
   // 2. IT Staff finds it in the Queue and opens it.
   await loginAsUI(page, "kevin.patel@toktickit.com");
-  await page.getByRole("link", { name: "Ticket Queue" }).click();
+  await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
   await page.waitForURL("**/staff/queue");
   await page.fill('input[placeholder*="Search by ticket number"]', MARKER);
   await page.getByRole("link", { name: ticketNumber }).click();

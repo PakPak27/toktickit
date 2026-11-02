@@ -16,8 +16,8 @@ const MARKER = `queue-marker-${RUN_ID}`;
 
 beforeAll(async () => {
   const prisma = getPrisma();
-  const staff = await prisma.user.findFirst({ where: { isActive: true, role: "IT_STAFF" } });
-  const requester = await prisma.user.findFirst({ where: { isActive: true, role: "REQUESTER" } });
+  const staff = await prisma.user.findFirst({ where: { isActive: true, role: "IT_STAFF" }, orderBy: { id: "asc" } });
+  const requester = await prisma.user.findFirst({ where: { isActive: true, role: "REQUESTER" }, orderBy: { id: "asc" } });
   const category = await prisma.category.findFirst();
   const relatedSystem = await prisma.relatedSystem.findFirst({ where: { isActive: true } });
 

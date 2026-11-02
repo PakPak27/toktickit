@@ -13,7 +13,7 @@ let ticketId: number;
 beforeAll(async () => {
   const prisma = getPrisma();
   const staffUsers = await prisma.user.findMany({ where: { isActive: true, role: "IT_STAFF" }, orderBy: { id: "asc" }, take: 2 });
-  const requester = await prisma.user.findFirst({ where: { isActive: true, role: "REQUESTER" } });
+  const requester = await prisma.user.findFirst({ where: { isActive: true, role: "REQUESTER" }, orderBy: { id: "asc" } });
   const category = await prisma.category.findFirst();
   const relatedSystem = await prisma.relatedSystem.findFirst({ where: { isActive: true } });
 
@@ -73,7 +73,7 @@ describe("PATCH /api/staff/tickets/:id/owner (AC-07, AC-08)", () => {
   });
 
   it("rejects an inactive/Requester target as owner", async () => {
-    const requester = await getPrisma().user.findFirst({ where: { role: "REQUESTER" } });
+    const requester = await getPrisma().user.findFirst({ where: { role: "REQUESTER" }, orderBy: { id: "asc" } });
     const res = await staffAgentA.patch(`/api/staff/tickets/${ticketId}/owner`).send({ ticketOwnerId: requester!.id });
     expect(res.status).toBe(400);
   });

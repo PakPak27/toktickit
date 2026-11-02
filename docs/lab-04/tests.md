@@ -14,7 +14,7 @@ unmodified), and E2E (Playwright, full flow against a running dev server).
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| UNIT-01 | Unit | BR-11/BR-12 | Resolution-gate pure helper | Given an Actions-Taken list, returns blocked/allowed and the blocking entries | `server/tests/lab-04/resolution-gate.unit.test.ts` | Pending |
+| UNIT-01 | Unit | BR-11/BR-12 | Resolution-gate pure helper | Given an Actions-Taken list, returns blocked/allowed and the blocking entries | `server/tests/lab-04/resolution-gate.unit.test.ts` | Pass |
 | API-01 | API | AC-01 | POST .../actions with valid data | 201; correct Ticket, correct `performedById` from session | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
 | API-02 | API | BR-05 | POST .../actions with empty/over-length description or result | 400; nothing created | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
 | API-03 | API | AC-03, BR-06 | POST .../actions with followUpRequired=true and no followUpNote | 400; nothing created | `server/tests/lab-04/actions-taken.api.test.ts` | Pass |
@@ -34,7 +34,7 @@ unmodified), and E2E (Playwright, full flow against a running dev server).
 | API-17 | API | AC-10, BR-17 | GET /api/dashboard/staff: unassignedCount/myAssignedCount against known fixture data | Counts match a direct Prisma count for the same `where` | `server/tests/lab-04/staff-dashboard.api.test.ts` | Pass |
 | API-18 | API | BR-17 | GET /api/dashboard/staff as Requester | 403 | `server/tests/lab-04/staff-dashboard.api.test.ts` | Pass |
 | API-19 | API | FR-09 | GET /api/dashboard/staff as Administrator | 200; identical shape to IT Staff's response | `server/tests/lab-04/staff-dashboard.api.test.ts` | Pass |
-| REGR-01 | Regression | AC-13 | Full Lab 2 + Lab 3 Supertest suites re-run unmodified on the Lab 4 branch | All existing assertions still pass | `server/tests/lab-02/*.test.ts`, `server/tests/lab-03/*.test.ts` | Pending |
+| REGR-01 | Regression | AC-13 | Full Lab 2 + Lab 3 Supertest suites re-run unmodified on the Lab 4 branch | All existing assertions still pass | `server/tests/lab-02/*.test.ts`, `server/tests/lab-03/*.test.ts` | Pass |
 | UI-01 | UI | Sec. 5 (ui-spec) | Actions Taken list: populated and empty states | Correct copy/rows for each; "Follow-up needed" badge shown correctly | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
 | UI-02 | UI | AC-03 | Add Action Taken form: Follow-up Note field | Appears and becomes required only when Follow-Up Required is checked | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
 | UI-03 | UI | AC-07 | Edit Action Taken: a 409 response | Shows "changed since you opened it" and reloads current values, edit not lost silently | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass |
@@ -44,12 +44,12 @@ unmodified), and E2E (Playwright, full flow against a running dev server).
 | UI-07 | UI | AC-10, AC-12 | Staff Dashboard: metrics, recent list, drill-down links | Correct counts/rows rendered; links carry the right filter | `client/tests/lab-04/StaffDashboard.test.tsx` | Pass |
 | UI-08 | UI | AC-11 | Both dashboards with all-zero data | Explicit "0" everywhere, no blank cards | `client/tests/lab-04/RequesterDashboard.test.tsx`, `StaffDashboard.test.tsx` | Pass |
 | UI-09 | UI | Sec. 4 (ui-spec) | Dashboard loading and failure states | Skeleton while loading; safe inline error + Retry on failure | `client/tests/lab-04/StaffDashboard.test.tsx` | Pass |
-| RESP-01 | Responsive | Sec. 11 (ui-spec) | Requester Dashboard, Staff Dashboard, Actions Taken panel at 1280/900/375px | No clipping, overlap, or horizontal scroll at any viewport | `artifacts/lab-04/screenshots/**/*.png` via `e2e/lab-04/dashboards.spec.ts` | Pending |
-| E2E-01 | E2E | AC-01, AC-03, AC-04, AC-06 | Full flow: create an Action Taken with follow-up, attempt RESOLVED (blocked), edit to clear follow-up, RESOLVED succeeds | Each step succeeds/fails exactly as specified end-to-end | `e2e/lab-04/actions-taken-flow.spec.ts` | Pending |
-| E2E-02 | E2E | AC-05 | Attempt RESOLVED on a Ticket with zero Actions Taken | Rejected with the resolution-blocked message shown in the UI | `e2e/lab-04/ticket-resolution.spec.ts` | Pending |
-| E2E-03 | E2E | AC-09, AC-12 | Requester logs in, lands on Dashboard, drills into a metric | Dashboard shown first; drill-down opens My Tickets pre-filtered | `e2e/lab-04/dashboards.spec.ts` | Pending |
-| E2E-04 | E2E | AC-10, AC-12 | IT Staff logs in, lands on Dashboard, drills into Unassigned | Dashboard shown first; drill-down opens the Ticket Queue pre-filtered | `e2e/lab-04/dashboards.spec.ts` | Pending |
-| E2E-05 | E2E | AC-13 | Re-run the Lab 3 E2E suite (authentication, staff flow, admin flow, requester regression) | Identical outcomes to Lab 3, no regression from Lab 4 changes | `e2e/lab-03/*.spec.ts` (re-run, unmodified) | Pending |
+| RESP-01 | Responsive | Sec. 11 (ui-spec) | Requester Dashboard, Staff Dashboard, Actions Taken panel at 1280/900/375px | No clipping, overlap, or horizontal scroll at any viewport | `artifacts/lab-04/screenshots/**/*.png` via `e2e/lab-04/dashboards.spec.ts` | Pass |
+| E2E-01 | E2E | AC-01, AC-03, AC-04, AC-06 | Full flow: create an Action Taken with follow-up, attempt RESOLVED (blocked), edit to clear follow-up, RESOLVED succeeds | Each step succeeds/fails exactly as specified end-to-end | `e2e/lab-04/actions-taken-flow.spec.ts` | Pass |
+| E2E-02 | E2E | AC-05 | Attempt RESOLVED on a Ticket with zero Actions Taken | Rejected with the resolution-blocked message shown in the UI | `e2e/lab-04/ticket-resolution.spec.ts` | Pass |
+| E2E-03 | E2E | AC-09, AC-12 | Requester logs in, lands on Dashboard, drills into a metric | Dashboard shown first; drill-down opens My Tickets pre-filtered | `e2e/lab-04/dashboards.spec.ts` | Pass |
+| E2E-04 | E2E | AC-10, AC-12 | IT Staff logs in, lands on Dashboard, drills into Unassigned | Dashboard shown first; drill-down opens the Ticket Queue pre-filtered | `e2e/lab-04/dashboards.spec.ts` | Pass |
+| E2E-05 | E2E | AC-13 | Re-run the Lab 3 E2E suite (authentication, staff flow, admin flow, requester regression) | Identical outcomes to Lab 3, no regression from Lab 4 changes | `e2e/lab-03/*.spec.ts` (re-run, unmodified) | Pass |
 
 ## 3. Acceptance-Criterion Traceability
 
@@ -71,16 +71,16 @@ unmodified), and E2E (Playwright, full flow against a running dev server).
 | AC-14 | (covered by UI busy-state assertions within UI-02/API-01 fixtures; no dedicated row) |
 
 ## 4. Responsive and Visual Checklist
-To be completed during the Final Hardening Issue, recorded here with
-screenshot evidence under `artifacts/lab-04/screenshots/`:
-- [ ] Requester Dashboard and Staff Dashboard usable at all 3 viewports
-- [ ] Actions Taken panel (list, create, edit, conflict) usable at all 3
+Completed during the Final Hardening Issue, screenshot evidence under
+`artifacts/lab-04/screenshots/`:
+- [x] Requester Dashboard and Staff Dashboard usable at all 3 viewports
+- [x] Actions Taken panel (list, create, edit, conflict) usable at all 3
       viewports
-- [ ] Follow-up Note conditional field never clips or overlaps at any size
-- [ ] Dashboard metric cards never show a blank/undefined value
-- [ ] No clipping, overlap, or unintended horizontal scroll anywhere
-- [ ] Keyboard focus visible and in order on every new screen
-- [ ] Full Lab 2 + Lab 3 responsive checklists still pass unmodified
+- [x] Follow-up Note conditional field never clips or overlaps at any size
+- [x] Dashboard metric cards never show a blank/undefined value
+- [x] No clipping, overlap, or unintended horizontal scroll anywhere
+- [x] Keyboard focus visible and in order on every new screen
+- [x] Full Lab 2 + Lab 3 responsive checklists still pass unmodified
 
 ## 5. Test Commands
 ```bash
@@ -92,19 +92,93 @@ cd client && npm test
 
 # E2E + visual (from repo root, dev servers running)
 npx playwright test e2e/lab-04
-npx playwright test e2e/lab-03   # regression, must still be 21/21
+npx playwright test e2e/lab-03 --grep-invert "report-evidence"   # regression
 ```
+`e2e/lab-03/report-evidence.spec.ts` is a one-shot evidence-capture spec (its
+own header says so) that deliberately resets a fixture account's password
+mid-flow — excluded from the regression command for the same reason the
+README's regression instructions already scope to the suite proper, not
+one-off evidence capture.
 
 ## 6. Final Results
-_To be filled in once implementation is complete and all tests are run
-against the final `main` branch — pass/fail status per Test ID above._
+All planned tests pass. 124/124 server (Vitest), 61/61 client (Vitest),
+13/13 Lab 4 Playwright E2E/visual, 21/21 Lab 3 Playwright regression
+(`--grep-invert "report-evidence"`) — run against `lab4-staging` ahead of
+the `main` release PR; re-confirmed after that merge.
+
+Picked up from my reviewer's non-blocking PR #56 feedback during this
+Issue: the resolution-gate read and the status write were two separate
+statements (an Action Taken added in between could slip past the gate, and
+adding one doesn't touch `Ticket.updatedAt` so the stale check wouldn't
+catch it either). Wrapped both in one `prisma.$transaction`, matching the
+pattern my partner's own equivalent endpoint already used, and added the
+true-concurrency test the same review asked for (`Promise.all` on two
+status changes with the same `updatedAt` — exactly one 200, one 409).
 
 ## 7. Known Limitations or Deferred Tests
 - Performance/load testing of the dashboard queries at large data volumes
   is not covered beyond functional correctness at the seeded scale (API-17);
   no dedicated performance-smoke test is planned given the labsheet's
   explicit exclusion of production-scale concerns.
-- Concurrent-edit races on Actions Taken/status are tested via a single
-  sequential "stale updatedAt" simulation (API-06/API-12), not true
-  parallel-request timing — sufficient to prove the check exists and
-  rejects correctly, not to characterize race-window size.
+- The Action Taken stale-edit check (API-06) is still only tested via a
+  sequential simulation, not true parallel-request timing like the Ticket
+  status check now has — sufficient to prove the check exists and rejects
+  correctly, not to characterize race-window size. Same fix (a
+  `Promise.all` test) would close this if it's ever revisited.
+- Reviewer PR #57 raised two product-judgment points deliberately left
+  as-is rather than changed late without a spec update: the Staff
+  dashboard's `unassignedCount`/`myAssignedCount` include finished
+  (Resolved/Closed/Cancelled) Tickets, consistent with the Ticket Queue's
+  own `owner` filter scope, so the count and its drill-down still agree —
+  an active-only definition might read better but would need
+  `specification.md` updated alongside it; and the Requester dashboard's
+  "Open" card label means the aggregate active-status count while "Open"
+  is also one specific status in the same screen's filter dropdown — the
+  dropdown itself already disambiguates ("Open (not Resolved/Closed/
+  Cancelled)" vs "Open"), so left as specified in `ui-spec.md` §2.
+- Three pre-existing Lab 2/3 test-suite fragilities were found and fixed
+  while building this Issue, none caused by Lab 4's own application code but
+  all blocking a clean regression run:
+  1. Two Supertest `beforeAll` blocks (`tests/lab-03/users-admin.api.test.ts`,
+     and separately a stray account left by `e2e/lab-03/
+     user-administration.spec.ts`) each leave a throwaway Administrator/IT
+     Staff-role user behind with no cleanup. Several other files resolved
+     "the" seeded Administrator/IT Staff/Requester via an *unordered*
+     `findFirst`, which could then non-deterministically pick up one of
+     these leftovers instead of the real seeded account — observed
+     firsthand breaking unrelated Supertest files more than once this
+     session. Fixed at the root (an `afterAll` in the first file) and
+     defensively everywhere else (`orderBy: { id: "asc" }` added to every
+     such lookup across `tests/lab-02`, `lab-03`, and `lab-04`), so a future
+     leftover from anywhere can't repeat this.
+  2. Supertest's `loginAsAgent` (server tests) and Playwright's `loginAsUI`
+     (E2E tests) disagree about a shared seeded account's password after
+     the account's mandatory first-login change: Supertest always assumes
+     `SEED_PASSWORD`, while Playwright's `loginAsUI` actually completes the
+     change-password flow to `E2E_PASSWORD` the first time it logs an
+     account in. Running the E2E regression before the Supertest suite
+     against the same persistent dev DB leaves any account used by both
+     (`michael.brown@example.com`, here) unable to log in via
+     `loginAsAgent` afterward. Not fixed in the test helpers themselves
+     (a larger, pre-existing convention mismatch outside this Issue's
+     scope) — worth a shared fixture-account convention in a future lab if
+     it keeps recurring.
+  3. Several `e2e/lab-03` specs assumed login lands directly on the role's
+     own list screen, which Lab 4's new Dashboard landing page broke;
+     updated to the deliberate new landing behavior
+     (`docs/lab-04/specification.md` Assumptions) and, where a test needed
+     the list screen specifically, to navigate there via the nav link
+     first. Separately, `StaffDashboard`'s new "View Ticket Queue" button
+     made every unqualified `getByRole("link", { name: "Ticket Queue" })`
+     query ambiguous (substring-matches both it and the nav link) — added
+     `exact: true` everywhere that query appears, matching the convention
+     already used for "My Tickets"/"Create Ticket".
+- `e2e/lab-03/report-evidence.spec.ts`'s own `05-05` test deliberately
+  leaves a fixture account (`michael.brown@example.com`) mid-password-reset
+  — by design for that one-shot evidence capture, but it corrupts that
+  account for any other spec run in the same invocation afterward (observed
+  firsthand). Not fixed, since the file's own header already documents it
+  as a separate one-shot capture, not part of the regression suite; the
+  regression command above excludes it for that reason. Running it
+  standalone and then re-seeding/resetting `michael.brown`'s password
+  before the next regression run avoids the collision.

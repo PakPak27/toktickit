@@ -13,6 +13,7 @@ import { authRouter } from "./authRoutes.js";
 import { requireAuth, requirePasswordChangeComplete, requireRole } from "./authMiddleware.js";
 import { isValidTransition, validNextStatuses, ALL_STATUSES } from "./statusTransitions.js";
 import { adminRouter } from "./adminRoutes.js";
+import { evaluateResolutionGate } from "./resolutionGate.js";
 
 // Lab 2's Requester ticket/attachment endpoints, now gated by an
 // authenticated Requester session (BR-09) instead of a client-supplied
@@ -786,79 +787,93 @@ app.patch("/api/staff/tickets/:id/status", ...requireStaffSession, async (req: R
 
   try {
     const prisma = getPrisma();
-    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
-    if (!ticket) {
-      return res.status(404).json({ error: "Ticket not found" });
-    }
 
-    // BR-14 — an early, friendly rejection for the common case: the
-    // client's own view is stale. The atomic updateMany below is what
-    // actually closes the race (two requests built on the same copy).
-    if (ticket.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
-      return res.status(409).json({
-        error: { code: "STALE_UPDATE", message: "This ticket changed since you opened it" },
-        currentStatus: ticket.currentStatus,
-        validNextStatuses: validNextStatuses(ticket.currentStatus),
-      });
-    }
+    // One transaction: the stale check, the resolution gate (which reads
+    // Actions Taken) and the write all happen together, so an Action Taken
+    // added between the gate check and the write can't slip past it (the
+    // gate read and the ticket write used to be two separate statements).
+    const outcome = await prisma.$transaction(async (tx) => {
+      const ticket = await tx.ticket.findUnique({ where: { id: ticketId } });
+      if (!ticket) return { kind: "NOT_FOUND" as const };
 
-    if (!isValidTransition(ticket.currentStatus, targetStatus)) {
-      return res.status(400).json({
-        error: `Cannot transition from ${ticket.currentStatus} to ${targetStatus}`,
-        validNextStatuses: validNextStatuses(ticket.currentStatus),
+      // BR-14 — an early, friendly rejection for the common case: the
+      // client's own view is stale. The atomic updateMany below is what
+      // actually closes the race (two requests built on the same copy).
+      if (ticket.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+        return { kind: "STALE" as const, currentStatus: ticket.currentStatus };
+      }
+
+      if (!isValidTransition(ticket.currentStatus, targetStatus)) {
+        return { kind: "INVALID_TRANSITION" as const, from: ticket.currentStatus };
+      }
+      // BR-19: RESOLVED requires an assigned Ticket Owner.
+      if (targetStatus === "RESOLVED" && !ticket.ticketOwnerId) {
+        return { kind: "UNASSIGNED" as const };
+      }
+      // BR-11/BR-12 (resolution gate): RESOLVED needs at least one Action
+      // Taken and none with an open follow-up — checked independently of
+      // what the UI's own hint shows (ui-spec.md §7), so a stale hint or a
+      // direct API call can't bypass it.
+      if (targetStatus === "RESOLVED") {
+        const actions = await tx.actionTaken.findMany({
+          where: { ticketId },
+          select: { id: true, description: true, followUpRequired: true },
+        });
+        const gate = evaluateResolutionGate(actions);
+        if (gate.blocked) return { kind: "BLOCKED" as const, gate };
+      }
+
+      // BR-14 — the concurrency check and the write are one statement, so
+      // two requests built on the same copy cannot both succeed.
+      const { count } = await tx.ticket.updateMany({
+        where: { id: ticketId, updatedAt: expectedUpdatedAt },
+        data: {
+          currentStatus: targetStatus as Prisma.TicketUpdateInput["currentStatus"],
+          // BR-22: reopening clears a stale Requester confirmation.
+          ...(targetStatus === "REOPENED"
+            ? { requesterConfirmedResolved: false, requesterConfirmedResolvedAt: null }
+            : {}),
+        },
       });
-    }
-    // BR-19: RESOLVED requires an assigned Ticket Owner.
-    if (targetStatus === "RESOLVED" && !ticket.ticketOwnerId) {
-      return res.status(409).json({ error: { code: "UNASSIGNED", message: "An unassigned Ticket cannot be resolved" } });
-    }
-    // BR-11/BR-12 (resolution gate): RESOLVED needs at least one Action
-    // Taken and none with an open follow-up — checked independently of
-    // what the UI's own hint shows (ui-spec.md §7), so a stale hint or a
-    // direct API call can't bypass it.
-    if (targetStatus === "RESOLVED") {
-      const actions = await prisma.actionTaken.findMany({
-        where: { ticketId },
-        select: { id: true, description: true, followUpRequired: true },
-      });
-      const openFollowUps = actions.filter((a) => a.followUpRequired);
-      if (actions.length === 0 || openFollowUps.length > 0) {
+      if (count === 0) {
+        const current = await tx.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+        return { kind: "STALE" as const, currentStatus: current.currentStatus };
+      }
+
+      const updated = await tx.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+      return { kind: "OK" as const, updated };
+    });
+
+    switch (outcome.kind) {
+      case "NOT_FOUND":
+        return res.status(404).json({ error: "Ticket not found" });
+      case "STALE":
+        return res.status(409).json({
+          error: { code: "STALE_UPDATE", message: "This ticket changed since you opened it" },
+          currentStatus: outcome.currentStatus,
+          validNextStatuses: validNextStatuses(outcome.currentStatus),
+        });
+      case "INVALID_TRANSITION":
+        return res.status(400).json({
+          error: `Cannot transition from ${outcome.from} to ${targetStatus}`,
+          validNextStatuses: validNextStatuses(outcome.from),
+        });
+      case "UNASSIGNED":
+        return res.status(409).json({ error: { code: "UNASSIGNED", message: "An unassigned Ticket cannot be resolved" } });
+      case "BLOCKED":
         return res.status(409).json({
           error: {
             code: "RESOLUTION_BLOCKED",
             message:
-              actions.length === 0
+              outcome.gate.reason === "NO_ACTIONS"
                 ? "This ticket has no recorded Actions Taken yet"
                 : "This ticket has an open follow-up on at least one Action Taken",
-            blockingActions: openFollowUps.map((a) => ({ id: a.id, description: a.description })),
+            blockingActions: outcome.gate.blockingActions,
           },
         });
-      }
     }
 
-    // BR-14 — the concurrency check and the write are one statement, so
-    // two requests built on the same copy cannot both succeed.
-    const { count } = await prisma.ticket.updateMany({
-      where: { id: ticketId, updatedAt: expectedUpdatedAt },
-      data: {
-        currentStatus: targetStatus as Prisma.TicketUpdateInput["currentStatus"],
-        // BR-22: reopening clears a stale Requester confirmation.
-        ...(targetStatus === "REOPENED"
-          ? { requesterConfirmedResolved: false, requesterConfirmedResolvedAt: null }
-          : {}),
-      },
-    });
-
-    if (count === 0) {
-      const current = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
-      return res.status(409).json({
-        error: { code: "STALE_UPDATE", message: "This ticket changed since you opened it" },
-        currentStatus: current.currentStatus,
-        validNextStatuses: validNextStatuses(current.currentStatus),
-      });
-    }
-
-    const updated = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+    const updated = outcome.updated;
     res.status(200).json({
       currentStatus: updated.currentStatus,
       validNextStatuses: validNextStatuses(updated.currentStatus),

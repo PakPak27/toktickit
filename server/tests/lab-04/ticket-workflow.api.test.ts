@@ -11,8 +11,8 @@ let relatedSystemId: number;
 
 beforeAll(async () => {
   const prisma = getPrisma();
-  const staff = await prisma.user.findFirst({ where: { isActive: true, role: "IT_STAFF" } });
-  const requester = await prisma.user.findFirst({ where: { isActive: true, role: "REQUESTER" } });
+  const staff = await prisma.user.findFirst({ where: { isActive: true, role: "IT_STAFF" }, orderBy: { id: "asc" } });
+  const requester = await prisma.user.findFirst({ where: { isActive: true, role: "REQUESTER" }, orderBy: { id: "asc" } });
   const category = await prisma.category.findFirst();
   const relatedSystem = await prisma.relatedSystem.findFirst({ where: { isActive: true } });
 
@@ -113,6 +113,26 @@ describe("Status change concurrency (API-12, API-13)", () => {
 
     const current = await getPrisma().ticket.findUniqueOrThrow({ where: { id: ticketId } });
     expect(current.currentStatus).toBe("WAITING_FOR_REQUESTER");
+  });
+
+  // Review of PR #56: the sequential stale-updatedAt test above only
+  // exercises the early read-then-compare rejection, not the atomic
+  // updateMany's own count===0 branch — the part that actually closes the
+  // race between two truly simultaneous requests built on the same copy.
+  it("lets exactly one of two simultaneous status changes win (BR-14)", async () => {
+    const { ticketId, updatedAt } = await newOwnedTicket("Simultaneous status changes");
+
+    const [a, b] = await Promise.all([
+      patchStatus(ticketId, "WAITING_FOR_REQUESTER", updatedAt),
+      patchStatus(ticketId, "CANCELLED", updatedAt),
+    ]);
+    const statuses = [a.status, b.status].sort();
+    expect(statuses).toEqual([200, 409]);
+    const loser = a.status === 409 ? a : b;
+    expect(loser.body.error.code).toBe("STALE_UPDATE");
+
+    const current = await getPrisma().ticket.findUniqueOrThrow({ where: { id: ticketId } });
+    expect(["WAITING_FOR_REQUESTER", "CANCELLED"]).toContain(current.currentStatus);
   });
 
   it("walks a full matrix-valid sequence carrying updatedAt at every step (Sec. 5.5)", async () => {

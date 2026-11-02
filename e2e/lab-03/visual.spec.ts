@@ -29,7 +29,7 @@ test.describe("Responsive visual QA (ui-spec.md §11, tests.md RESP-01)", () => 
     test(`Ticket Queue screenshot — ${viewportName}`, async ({ page }) => {
       await page.setViewportSize(size);
       await loginAsUI(page, "emily.davis@toktickit.com");
-      await page.getByRole("link", { name: "Ticket Queue" }).click();
+      await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
       await page.waitForURL("**/staff/queue");
 
       const dir = "artifacts/lab-03/screenshots/staff-queue";
@@ -57,7 +57,7 @@ test.describe("Responsive visual QA (ui-spec.md §11, tests.md RESP-01)", () => 
       await logoutViaUI(page);
 
       await loginAsUI(page, "robert.wilson@toktickit.com");
-      await page.getByRole("link", { name: "Ticket Queue" }).click();
+      await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
       await page.waitForURL("**/staff/queue");
       await page.fill('input[placeholder*="Search by ticket number"]', marker);
       // Desktop <table> row link and mobile card link both match "TKT-" —
